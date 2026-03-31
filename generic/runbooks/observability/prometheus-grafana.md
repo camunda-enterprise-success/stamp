@@ -133,6 +133,6 @@ Navigate to **Dashboards → Import** and paste the JSON or enter a Grafana.com 
 
 ---
 
-## Troubleshooting
+## 8. Troubleshooting
 
 ---
