@@ -125,7 +125,7 @@ kubectl label configmap camunda-zeebe-dashboard \
 
 **Option B: Grafana UI**
 
-Navigate to **Dashboards → Import** and paste the JSON or enter a Grafana.com dashboard ID.
+Navigate to **Dashboards → Import** and paste the JSON
 
 ---
 
