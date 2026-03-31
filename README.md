@@ -50,10 +50,10 @@ Config directories follow the naming pattern `{category}-{provider-or-tool}/` to
 
 | Provider | Config | Runbook |
 |---|---|---|
-| AWS Secrets Manager | [aws/configs/secrets-aws-secrets-manager](./aws/configs/secrets-aws-secrets-manager/values.yaml) | [aws/runbooks/secrets-aws-secrets-manager.md](./aws/runbooks/secrets-aws-secrets-manager.md) |
-| Azure Key Vault | [azure/configs/secrets-key-vault](./azure/configs/secrets-key-vault/values.yaml) | [azure/runbooks/secrets-key-vault.md](./azure/runbooks/secrets-key-vault.md) |
-| GCP Secret Manager | [gcp/configs/secrets-gcp-secret-manager](./gcp/configs/secrets-gcp-secret-manager/values.yaml) | [gcp/runbooks/secrets-gcp-secret-manager.md](./gcp/runbooks/secrets-gcp-secret-manager.md) |
-| HashiCorp Vault | [generic/configs/secrets-hashicorp-vault](./generic/configs/secrets-hashicorp-vault/values.yaml) | [generic/runbooks/secrets-hashicorp-vault.md](./generic/runbooks/secrets-hashicorp-vault.md) |
+|🚧 AWS Secrets Manager | [aws/configs/secrets-aws-secrets-manager](./aws/configs/secrets-aws-secrets-manager/values.yaml) | [aws/runbooks/secrets-aws-secrets-manager.md](./aws/runbooks/secrets-aws-secrets-manager.md) |
+|🚧 Azure Key Vault | [azure/configs/secrets-key-vault](./azure/configs/secrets-key-vault/values.yaml) | [azure/runbooks/secrets-key-vault.md](./azure/runbooks/secrets-key-vault.md) |
+|🚧 GCP Secret Manager | [gcp/configs/secrets-gcp-secret-manager](./gcp/configs/secrets-gcp-secret-manager/values.yaml) | [gcp/runbooks/secrets-gcp-secret-manager.md](./gcp/runbooks/secrets-gcp-secret-manager.md) |
+|🚧 HashiCorp Vault | [generic/configs/secrets-hashicorp-vault](./generic/configs/secrets-hashicorp-vault/values.yaml) | [generic/runbooks/secrets-hashicorp-vault.md](./generic/runbooks/secrets-hashicorp-vault.md) |
 
 ### Authentication
 
@@ -63,16 +63,16 @@ Config directories follow the naming pattern `{category}-{provider-or-tool}/` to
 
 ### Observability
 
-| Scenario | Runbook |
-|---|---|
-| Prometheus + Grafana | [generic/runbooks/observability-prometheus-grafana.md](./generic/runbooks/observability-prometheus-grafana.md) |
+| Scenario               | Runbook |
+|------------------------|---|
+|🚧 Prometheus + Grafana | [generic/runbooks/observability-prometheus-grafana.md](generic/runbooks/observability/observability-prometheus-grafana.md) |
 
 ### CI/CD
 
-| Tool | Runbook |
-|---|---|
-| GitHub Actions | [generic/runbooks/cicd-github-actions.md](./generic/runbooks/cicd-github-actions.md) |
-| ArgoCD | [generic/runbooks/cicd-argocd.md](./generic/runbooks/cicd-argocd.md) |
+| Tool            | Runbook |
+|-----------------|---|
+|🚧 GitHub Actions | [generic/runbooks/cicd-github-actions.md](./generic/runbooks/cicd-github-actions.md) |
+|🚧 ArgoCD        | [generic/runbooks/cicd-argocd.md](./generic/runbooks/cicd-argocd.md) |
 
 ---
 

@@ -1,0 +1,201 @@
+# STAMP: kube-prometheus-stack values.yaml
+# Scrapes ServiceMonitors, PodMonitors, and Probes across ALL namespaces.
+#
+# Usage:
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm repo update
+#   helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
+#     --namespace monitoring --create-namespace \
+#     -f this-file.yaml
+#
+# After install, deploy Camunda ServiceMonitors from:
+#   generic/runbooks/observability-prometheus-grafana.md
+
+# ================================================================
+# Namespace-wide discovery
+# These are the critical settings for cross-namespace scraping.
+# Without these, Prometheus only picks up monitors in its own
+# namespace that match its own release label (default since v38+).
+# ================================================================
+prometheus:
+  prometheusSpec:
+
+    # -- Allow Prometheus to find ServiceMonitors in any namespace
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector:
+      any: true
+
+    # -- Allow Prometheus to find PodMonitors in any namespace
+    podMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelector: {}
+    podMonitorNamespaceSelector:
+      any: true
+
+    # -- Allow Prometheus to find Probes in any namespace
+    probeSelectorNilUsesHelmValues: false
+    probeSelector: {}
+    probeNamespaceSelector:
+      any: true
+
+    # -- Allow Prometheus to find PrometheusRules (alerts) in any namespace
+    ruleSelectorNilUsesHelmValues: false
+    ruleSelector: {}
+    ruleNamespaceSelector:
+      any: true
+
+    # -- Allow Prometheus to find ScrapeConfigs in any namespace
+    scrapeConfigSelectorNilUsesHelmValues: false
+    scrapeConfigSelector: {}
+    scrapeConfigNamespaceSelector:
+      any: true
+
+    # ----------------------------------------------------------------
+    # Retention and storage
+    # NOTE: Adjust retention to match your storage budget.
+    # ----------------------------------------------------------------
+    retention: 30d
+    retentionSize: "40GB"
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          # NOTE: Set to your cluster's storage class (gp3, standard, etc.)
+          # storageClassName: gp3
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 50Gi
+
+    # ----------------------------------------------------------------
+    # Resources
+    # ----------------------------------------------------------------
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: 2
+        memory: 4Gi
+
+    # ----------------------------------------------------------------
+    # Scrape intervals
+    # ----------------------------------------------------------------
+    scrapeInterval: 30s
+    evaluationInterval: 30s
+
+# ================================================================
+# Alertmanager
+# Disabled — enable and configure receivers (Slack, PagerDuty, email)
+# when the customer is ready for alerting.
+# ================================================================
+alertmanager:
+  enabled: false
+
+# ================================================================
+# Grafana
+# ================================================================
+grafana:
+  enabled: true
+
+  # NOTE: Change this or use an existingSecret in production.
+  adminPassword: "changeme"
+  # adminPasswordSecret: grafana-admin-secret
+
+  persistence:
+    enabled: true
+    size: 10Gi
+    # storageClassName: gp3
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1
+      memory: 512Mi
+
+  # -- Auto-load dashboards from ConfigMaps labeled grafana_dashboard: "1"
+  # in any namespace — useful for dropping in Camunda dashboards.
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: ALL
+      label: grafana_dashboard
+      labelValue: "1"
+    datasources:
+      enabled: true
+      searchNamespace: ALL
+
+  grafana.ini:
+    server:
+      # NOTE: Set to your Grafana external URL if using ingress
+      # root_url: https://grafana.example.com
+      root_url: "%(protocol)s://%(domain)s:%(http_port)s/"
+    auth:
+      disable_login_form: false
+
+  ingress:
+    enabled: false
+    # ingressClassName: nginx
+    # hosts:
+    #   - grafana.example.com
+    # tls:
+    #   - secretName: grafana-tls
+    #     hosts:
+    #       - grafana.example.com
+
+# ================================================================
+# Prometheus Operator
+# Watches all namespaces for CRDs (ServiceMonitor, PodMonitor, etc.)
+# ================================================================
+prometheusOperator:
+  # No namespaces restriction — operator watches ALL namespaces by default.
+  # Explicitly setting namespaces.additional would restrict CRD discovery.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# ================================================================
+# kube-state-metrics — cluster-level metrics (pod status, deploys, etc.)
+# ================================================================
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# ================================================================
+# node-exporter — per-node hardware and OS metrics
+# ================================================================
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# ================================================================
+# Default rules
+# Recording rules are kept on for Grafana dashboard performance.
+# Alerting groups that require Alertmanager or are unavailable on
+# managed clusters (EKS, AKS, GKE) are disabled.
+# ================================================================
+defaultRules:
+  create: true
+  rules:
+    alertmanager: false          # Alertmanager disabled
+    etcd: false                  # not exposed on managed clusters
+    kubeControllerManager: false # not exposed on managed clusters
+    kubeProxy: false             # not exposed on managed clusters
+    kubeSchedulerAlerting: false # not exposed on managed clusters
+    kubeSchedulerRecording: false # no endpoint = no data
