@@ -14,7 +14,7 @@ Alertmanager is **not included** in this setup.
 
 - Kubernetes cluster 
 - `helm` and `kubectl` configured
-- Sufficient cluster resources — Prometheus is memory-intensive; the STAMP config requests 1Gi and limits to 2Gi
+- Sufficient cluster resources — Prometheus is memory-intensive; the STAMP config sets low requests, but for a production environment this will have to be increased.
 - Persistent storage available in the cluster 
 
 ---
