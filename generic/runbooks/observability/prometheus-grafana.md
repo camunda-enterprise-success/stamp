@@ -107,7 +107,9 @@ kubectl get secret prometheus-grafana \
 
 ## 6. Import Camunda Dashboards
 
-The STAMP values file enables the Grafana dashboard sidecar with `searchNamespace: ALL`. Any ConfigMap with the label `grafana_dashboard: "1"` in any namespace is automatically loaded into Grafana within ~30 seconds.
+The STAMP values file enables the Grafana dashboard sidecar with `searchNamespace: ALL`. Any ConfigMap with the label `grafana_dashboard: "camunda"` in any namespace is automatically loaded into Grafana within ~30 seconds.
+
+You can find our dashboards at [https://github.com/camunda/camunda/blob/main/monitor/grafana/zeebe.json](https://github.com/camunda/camunda/blob/main/monitor/grafana/zeebe.json)
 
 **Option A: ConfigMap (GitOps-friendly)**
 
@@ -115,17 +117,15 @@ The STAMP values file enables the Grafana dashboard sidecar with `searchNamespac
 # Download dashboard JSON from Camunda docs or grafana.com
 # then create a ConfigMap from it
 kubectl create configmap camunda-zeebe-dashboard \
-  --from-file=zeebe-dashboard.json \
-  --namespace camunda
+  --from-file=zeebe-dashboard.json 
 
 kubectl label configmap camunda-zeebe-dashboard \
-  grafana_dashboard=1 \
-  --namespace camunda
+  grafana_dashboard=camunda
 ```
 
 **Option B: Grafana UI**
 
-Navigate to **Dashboards → Import** and paste the JSON or enter a Grafana.com dashboard ID. Search [grafana.com/grafana/dashboards](https://grafana.com/grafana/dashboards) for "Camunda" to find community dashboards.
+Navigate to **Dashboards → Import** and paste the JSON or enter a Grafana.com dashboard ID.
 
 ---
 
