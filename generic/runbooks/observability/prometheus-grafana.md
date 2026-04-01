@@ -1,6 +1,6 @@
 # Runbook: Observability — Prometheus + Grafana for Camunda
 
-**Related config:** [`../configs/observability-prometheus-grafana/values.yaml`](../configs/observability-prometheus-grafana/values.yaml)
+**Related config:** [`../configs/observability/values-prometheus-grafana.yaml`](../configs/observability/values-prometheus-grafana.yaml)
 
 ## Overview
 
@@ -21,14 +21,14 @@ Alertmanager is **not included** in this setup.
 
 ## 1. Review the Values File
 
-Before deploying, open [`../configs/observability-prometheus-grafana/values.yaml`](../configs/observability-prometheus-grafana/values.yaml) and set:
+Before deploying, open [`../configs/observability/values-prometheus-grafana.yaml`](../configs/observability/values-prometheus-grafana.yaml) and set:
 
-| Field | Location | Notes                                                                                                                       |
-|---|---|-----------------------------------------------------------------------------------------------------------------------------|
-| `storageClassName` | `prometheus.prometheusSpec.storageSpec` | Match your cluster's storage class (e.g. `gp3`, `standard`, `managed-premium`). Omit this to rely on your clusters default. |
-| `grafana.adminPassword` | `grafana.adminPassword` | Change from `changeme` or use `adminPasswordSecret`                                                                         |
-| `grafana.ingress` | `grafana.ingress` | Enable and set host if exposing Grafana externally                                                                          |
-| `retention` / `retentionSize` | `prometheus.prometheusSpec` | Default is 30d / 40GB — adjust to storage budget                                                                            |
+| Field | Location | Notes                                                                                                                                                  |
+|---|---|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `storageClassName` | `prometheus.prometheusSpec.storageSpec` | Match your cluster's storage class (e.g. `gp3`, `standard`, `managed-premium`). Omit this to rely on your clusters default or when installing on local |
+| `grafana.adminPassword` | `grafana.adminPassword` | Change from `changeme` or use `adminPasswordSecret`                                                                                                    |
+| `grafana.ingress` | `grafana.ingress` | Enable and set host if exposing Grafana externally                                                                                                     |
+| `retention` / `retentionSize` | `prometheus.prometheusSpec` | Default is 30d / 40GB — adjust to storage budget                                                                                                       |
 
 ---
 

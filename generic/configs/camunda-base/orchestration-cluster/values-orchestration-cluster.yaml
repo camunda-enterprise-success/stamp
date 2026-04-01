@@ -52,8 +52,8 @@ orchestration:
         secretName: camunda-platform
 
   # Orchestration Cluster sizing (must be strings, in double quotes)
-  clusterSize: "1"
-  partitionCount: "1"
+  clusterSize: "2"
+  partitionCount: "2"
   replicationFactor: "1"
   pvcSize: 10Gi
 
