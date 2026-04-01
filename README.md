@@ -65,7 +65,7 @@ Config directories follow the naming pattern `{category}-{provider-or-tool}/` to
 
 | Scenario               | Runbook |
 |------------------------|---|
-|🚧 Prometheus + Grafana | [generic/runbooks/observability-prometheus-grafana.md](generic/runbooks/observability/observability-prometheus-grafana.md) |
+| Prometheus + Grafana | [generic/runbooks/observability-prometheus-grafana.md](generic/runbooks/observability/observability-prometheus-grafana.md) |
 
 ### CI/CD
 
