@@ -21,7 +21,7 @@ Alertmanager is **not included** in this setup.
 
 ## 1. Review the Values File
 
-Before deploying, open [`../configs/observability/values-prometheus-grafana.yaml`](../configs/observability/values-prometheus-grafana.yaml) and set:
+Before deploying, open [`../../configs/observability/values-prometheus-grafana.yaml`](../configs/observability/values-prometheus-grafana.yaml) and set:
 
 | Field | Location | Notes                                                                                                                                                  |
 |---|---|--------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -41,7 +41,7 @@ helm repo update
 helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
   --namespace monitoring \
   --create-namespace \
-  -f generic/configs/observability-prometheus-grafana/values.yaml \
+  -f ../../configs/observability/values-prometheus-grafana.yaml \
   --wait
 ```
 

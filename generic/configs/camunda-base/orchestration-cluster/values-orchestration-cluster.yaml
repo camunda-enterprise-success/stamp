@@ -52,8 +52,8 @@ orchestration:
         secretName: camunda-platform
 
   # Orchestration Cluster sizing (must be strings, in double quotes)
-  clusterSize: "2"
-  partitionCount: "2"
+  clusterSize: "1"
+  partitionCount: "1"
   replicationFactor: "1"
   pvcSize: 10Gi
 
@@ -119,4 +119,8 @@ identityPostgresql:
   enabled: false
 
 identityKeycloak:
+  enabled: false
+
+# Prometheus
+prometheusServiceMonitor:
   enabled: false

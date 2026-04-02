@@ -23,32 +23,27 @@ prometheus:
     # -- Allow Prometheus to find ServiceMonitors in any namespace
     serviceMonitorSelectorNilUsesHelmValues: false
     serviceMonitorSelector: {}
-    serviceMonitorNamespaceSelector:
-      any: true
+    serviceMonitorNamespaceSelector: {}
 
     # -- Allow Prometheus to find PodMonitors in any namespace
     podMonitorSelectorNilUsesHelmValues: false
     podMonitorSelector: {}
-    podMonitorNamespaceSelector:
-      any: true
+    podMonitorNamespaceSelector: {}
 
     # -- Allow Prometheus to find Probes in any namespace
     probeSelectorNilUsesHelmValues: false
     probeSelector: {}
-    probeNamespaceSelector:
-      any: true
+    probeNamespaceSelector: {}
 
     # -- Allow Prometheus to find PrometheusRules (alerts) in any namespace
     ruleSelectorNilUsesHelmValues: false
     ruleSelector: {}
-    ruleNamespaceSelector:
-      any: true
+    ruleNamespaceSelector: {}
 
     # -- Allow Prometheus to find ScrapeConfigs in any namespace
     scrapeConfigSelectorNilUsesHelmValues: false
     scrapeConfigSelector: {}
-    scrapeConfigNamespaceSelector:
-      any: true
+    scrapeConfigNamespaceSelector: {}
 
     # ----------------------------------------------------------------
     # Retention and storage
