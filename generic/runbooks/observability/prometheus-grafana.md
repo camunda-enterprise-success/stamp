@@ -41,8 +41,8 @@ helm repo update
 helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
   --namespace monitoring \
   --create-namespace \
-  -f ../../configs/observability/values-prometheus-grafana.yaml \
-  --wait
+  -f ../../configs/observability/values-prometheus-grafana.yaml
+  
 ```
 
 Verify all pods are running:
