@@ -13,8 +13,7 @@ stamp/
 ├── README.md
 │
 ├── base-values/                          # Starting point for every deployment
-│   ├── orchestration-cluster/
-│   │   └── values-orchestration-cluster.yaml   # Core 1-node Camunda 8.8 values (basic auth)
+│   ├── values-orchestration-cluster.yaml       # Core 1-node Camunda 8.8 values (basic auth)
 │   ├── values-local-tls.yaml                   # mkcert CA trust overlay (local HTTPS)
 │   ├── camunda-credentials.yaml                # Credential references
 │   ├── !!!-operators/                          # 🚧 Operator configs
@@ -27,14 +26,14 @@ stamp/
 │
 ├── backups/                              # Backup destination overlays
 │   ├── s3/
-│   │   ├── s3-backup-values.yaml         # S3 backup Helm values
-│   │   └── s3-backup-runbook.md          # S3 backup runbook
+│   │   ├── s3-backup-values.yaml         # 🚧 S3 backup Helm values
+│   │   └── s3-backup-runbook.md          # 🚧 S3 backup runbook
 │   ├── azure-blob/
-│   │   ├── azure-blob-backup-values.yaml
-│   │   └── azure-blob-backup-runbook.md
+│   │   ├── azure-blob-backup-values.yaml # 🚧 
+│   │   └── azure-blob-backup-runbook.md  # 🚧 
 │   └── gcs/
-│       ├── gcs-backup-values.yaml
-│       └── gcs-backup-runbook.md
+│       ├── gcs-backup-values.yaml       # 🚧
+│       └── gcs-backup-runbook.md        # 🚧
 │
 └── observability/                        # Observability stack overlays
     ├── prometheus-grafana/
