@@ -1,106 +1,178 @@
-# STAMP
-### Structured Technical Account Manager Platform Setup
+# STAMP — Structured Technical Account Manager Platform Setup
 
-[![Camunda](https://img.shields.io/badge/Camunda-FC5D0D)](https://www.camunda.com/)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](./LICENSE)
+STAMP is an opinionated, modular Helm values library for deploying and configuring **Camunda 8.8** in customer environments. It is designed to let TAMs quickly layer scenario-specific configurations on top of a tested baseline, rather than building values files from scratch each time.
 
-STAMP is a companion repository to [camunda/camunda-deployment-references](https://github.com/camunda/camunda-deployment-references). Where that repo provides reference architectures using Terraform and infrastructure-as-code, STAMP provides:
-
-- **`values.yaml` overlays** for quickly enabling common integrations on top of a running Camunda Helm deployment
-- **Runbooks** for deploying and configuring supporting tools (observability, secret managers, CI/CD)
-
-> ⚠️ STAMP is intended for TAM-assisted deployments and proof-of-concept engagements. It is not a production-hardened reference. Always review and adapt configs to your customer's requirements.
+> **Companion library:** STAMP is intended to be used alongside the official [camunda-deployment-references](https://github.com/camunda/camunda-deployment-references) repository. That repo provides canonical, production-grade reference architectures and IaC; STAMP provides TAM-focused overlays, runbooks, and scenario configs that layer on top of those foundations.
 
 ---
 
-## Structure
+## Repository Structure
 
 ```
-STAMP/
-├── aws/
-│   ├── configs/          # values.yaml overlays for AWS-native scenarios
-│   └── runbooks/         # Step-by-step operational guides for AWS
-├── azure/
-│   ├── configs/
-│   └── runbooks/
-├── gcp/
-│   ├── configs/
-│   └── runbooks/
-└── generic/              # Cloud-agnostic configs and runbooks
-    ├── configs/
-    └── runbooks/
+stamp/
+├── README.md
+│
+├── base-values/                          # Starting point for every deployment
+│   ├── orchestration-cluster/
+│   │   └── values-orchestration-cluster.yaml   # Core 1-node Camunda 8.8 values (basic auth)
+│   ├── values-local-tls.yaml                   # mkcert CA trust overlay (local HTTPS)
+│   ├── camunda-credentials.yaml                # Credential references
+│   ├── !!!-operators/                          # 🚧 Operator configs
+│   └── !!!-management-cluster/                 # 🚧 Management cluster config
+│
+├── auth/                                 # Authentication overlays (layer on top of base)
+│   ├── !!!-entra/                        # 🚧 Microsoft Entra ID / OIDC
+│   ├── !!!-keycloak/                     # 🚧 Keycloak OIDC
+│   └── !!!-irsa/                         # 🚧 AWS IRSA
+│
+├── backups/                              # Backup destination overlays
+│   ├── s3/
+│   │   ├── s3-backup-values.yaml         # S3 backup Helm values
+│   │   └── s3-backup-runbook.md          # S3 backup runbook
+│   ├── azure-blob/
+│   │   ├── azure-blob-backup-values.yaml
+│   │   └── azure-blob-backup-runbook.md
+│   └── gcs/
+│       ├── gcs-backup-values.yaml
+│       └── gcs-backup-runbook.md
+│
+└── observability/                        # Observability stack overlays
+    ├── prometheus-grafana/
+    │   ├── prometheus-grafana-values.yaml  # kube-prometheus-stack values
+    │   └── prometheus-grafana-runbook.md   # Setup and wiring guide
+    ├── !!!-dynatrace/                      # 🚧 Dynatrace integration
+    └── !!!-cloudwatch/                     # 🚧 CloudWatch integration
 ```
 
-Config directories follow the naming pattern `{category}-{provider-or-tool}/` to mirror the convention used in `camunda-deployment-references`.
+> Directories prefixed with `!!!-` are reserved placeholders for future scenarios. They are intentionally empty.
 
 ---
 
-## Quick Reference
+## Quickstart
 
-### Backup
-
-| Provider | Config | Runbook |
-|---|---|---|
-| AWS S3 | [aws/configs/backup-s3](./aws/configs/backup-s3/values.yaml) | [aws/runbooks/backup-s3.md](./aws/runbooks/backup-s3.md) |
-| Azure Blob | [azure/configs/backup-blob](./azure/configs/backup-blob/values.yaml) | [azure/runbooks/backup-blob.md](./azure/runbooks/backup-blob.md) |
-| GCS | [gcp/configs/backup-gcs](./gcp/configs/backup-gcs/values.yaml) | [gcp/runbooks/backup-gcs.md](./gcp/runbooks/backup-gcs.md) |
-| MinIO | [generic/configs/backup-minio](./generic/configs/backup-minio/values.yaml) | [generic/runbooks/backup-minio.md](./generic/runbooks/backup-minio.md) |
-
-### Secret Managers
-
-| Provider | Config | Runbook |
-|---|---|---|
-|🚧 AWS Secrets Manager | [aws/configs/secrets-aws-secrets-manager](./aws/configs/secrets-aws-secrets-manager/values.yaml) | [aws/runbooks/secrets-aws-secrets-manager.md](./aws/runbooks/secrets-aws-secrets-manager.md) |
-|🚧 Azure Key Vault | [azure/configs/secrets-key-vault](./azure/configs/secrets-key-vault/values.yaml) | [azure/runbooks/secrets-key-vault.md](./azure/runbooks/secrets-key-vault.md) |
-|🚧 GCP Secret Manager | [gcp/configs/secrets-gcp-secret-manager](./gcp/configs/secrets-gcp-secret-manager/values.yaml) | [gcp/runbooks/secrets-gcp-secret-manager.md](./gcp/runbooks/secrets-gcp-secret-manager.md) |
-|🚧 HashiCorp Vault | [generic/configs/secrets-hashicorp-vault](./generic/configs/secrets-hashicorp-vault/values.yaml) | [generic/runbooks/secrets-hashicorp-vault.md](./generic/runbooks/secrets-hashicorp-vault.md) |
-
-### Authentication
-
-| Provider | Config | Runbook |
-|---|---|---|
-| Microsoft Entra ID | [generic/configs/auth-entra-id](./generic/configs/auth-entra-id/values.yaml) | [generic/runbooks/auth-entra-id.md](./generic/runbooks/auth-entra-id.md) |
-
-### Observability
-
-| Scenario               | Runbook |
-|------------------------|---|
-| Prometheus + Grafana | [generic/runbooks/observability-prometheus-grafana.md](generic/runbooks/observability/observability-prometheus-grafana.md) |
-
-### CI/CD
-
-| Tool            | Runbook |
-|-----------------|---|
-|🚧 GitHub Actions | [generic/runbooks/cicd-github-actions.md](./generic/runbooks/cicd-github-actions.md) |
-|🚧 ArgoCD        | [generic/runbooks/cicd-argocd.md](./generic/runbooks/cicd-argocd.md) |
-
----
-
-## Usage
-
-STAMP configs are designed to be layered on top of your base `values.yaml` using Helm's `-f` flag:
+### 1. Install the Camunda baseline
 
 ```bash
+helm repo add camunda https://helm.camunda.io && helm repo update
+
 helm upgrade --install camunda camunda/camunda-platform \
-  -f values.yaml \
-  -f stamp/aws/configs/backup-s3/values.yaml \
-  -f stamp/generic/configs/auth-entra-id/values.yaml
+  --version 8.8 \
+  --namespace camunda --create-namespace \
+  -f base-values/orchestration-cluster/values-orchestration-cluster.yaml
 ```
 
-Later files take precedence over earlier ones. Start with your base values, then layer in STAMP configs for each integration.
+Default login: `demo` / `demo`
+
+### 2. Layer on scenario configs
+
+Additional overlays are passed with `-f` flags in order, each overriding or extending the previous:
+
+```bash
+# Local HTTPS with mkcert CA trust
+-f base-values/values-local-tls.yaml
+
+# S3 backups
+-f backups/s3/s3-backup-values.yaml
+
+# Prometheus + Grafana observability
+# (deployed separately — see observability section below)
+```
 
 ---
 
-## Contributing
+## Base Values
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md). Stub runbooks marked with 🚧 are priority targets for new contributions.
+### `base-values/orchestration-cluster/values-orchestration-cluster.yaml`
 
-## Related
+The core starting point for a TAM-assisted deployment. Key characteristics:
 
-- [camunda/camunda-deployment-references](https://github.com/camunda/camunda-deployment-references) — reference architectures
-- [Camunda Helm Chart docs](https://docs.camunda.io/docs/self-managed/setup/install/)
-- [Camunda Self-Managed docs](https://docs.camunda.io/docs/self-managed/about-self-managed/)
+- **Auth:** Basic auth (`demo`/`demo`) — suitable for POC/demo environments
+- **Cluster size:** 1 node, 1 partition, replication factor 1
+- **Elasticsearch:** Deployed via subchart with 1 master + 1 data node (15Gi each)
+- **Ingress:** nginx, host `camunda.example.com` with TLS
+- **Disabled by default:** Console, WebModeler, Optimize, Identity, Keycloak, PostgreSQL
 
-## License
+Update `global.ingress.host` and the orchestration `ingress.grpc.host` before deploying to a real cluster.
 
-Apache-2.0
+### `base-values/values-local-tls.yaml`
+
+Overlay for local development environments using a [mkcert](https://github.com/FiloSottile/mkcert)-generated CA. Configures all Camunda components to trust the local CA certificate via a `mkcert-ca` ConfigMap:
+
+| Component type | Trust mechanism |
+|---|---|
+| Java (WebModeler restapi, Connectors, Identity, Optimize, Orchestration/Zeebe) | `initContainer` copies JVM cacerts, imports CA via `keytool`, sets `JAVA_TOOL_OPTIONS` |
+| Node.js (WebModeler webapp, websockets, Console) | `NODE_EXTRA_CA_CERTS` env var |
+
+**Prerequisite:** Create the ConfigMap before installing:
+```bash
+./procedure/certs-create-ca-configmap.sh
+```
+
+---
+
+## Observability
+
+### Prometheus + Grafana (`observability/prometheus-grafana/`)
+
+Deploys [`kube-prometheus-stack`](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) with cross-namespace ServiceMonitor, PodMonitor, and Probe discovery pre-configured.
+
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
+  --namespace monitoring --create-namespace \
+  -f observability/prometheus-grafana/prometheus-grafana-values.yaml
+```
+
+Key settings to review before deploying:
+
+| Setting | Location | Default |
+|---|---|---|
+| `storageClassName` | `prometheus.prometheusSpec.storageSpec` | commented out (uses cluster default) |
+| `grafana.adminPassword` | top-level | `changeme` |
+| `retention` / `retentionSize` | `prometheus.prometheusSpec` | 30d / 40GB |
+| Grafana ingress | `grafana.ingress` | disabled |
+
+Once deployed, enable Camunda ServiceMonitors by adding to your Camunda values:
+```yaml
+prometheusServiceMonitor:
+  enabled: true
+```
+
+See [`prometheus-grafana-runbook.md`](observability/prometheus-grafana/prometheus-grafana-runbook.md) for the full setup walkthrough including Grafana dashboard import.
+
+**Not included:** Alertmanager (disabled by default — enable when the customer is ready for alerting).
+
+---
+
+## Backups
+
+STAMP provides per-destination overlays with paired values + runbook files. Each backup destination is self-contained:
+
+| Destination | Values file | Runbook |
+|---|---|---|
+| AWS S3 | `backups/s3/s3-backup-values.yaml` | `backups/s3/s3-backup-runbook.md` |
+| Azure Blob Storage | `backups/azure-blob/azure-blob-backup-values.yaml` | `backups/azure-blob/azure-blob-backup-runbook.md` |
+| Google Cloud Storage | `backups/gcs/gcs-backup-values.yaml` | `backups/gcs/gcs-backup-runbook.md` |
+
+---
+
+## Authentication
+
+Auth overlays are in progress. Planned providers:
+
+| Provider | Directory |
+|---|---|
+| Microsoft Entra ID (OIDC) | `auth/!!!-entra/` |
+| Keycloak (OIDC) | `auth/!!!-keycloak/` |
+| AWS IRSA | `auth/!!!-irsa/` |
+
+---
+
+## Notes
+
+- STAMP values files are **overlays**, not standalone configs. Always deploy starting from a base values file.
+- Resource requests in STAMP are intentionally minimal for demo/POC use. Scale up for production.
+- The `!!!-` prefix on a directory means it is a planned placeholder — not yet populated.
+- Elasticsearch sizing in the baseline is minimal (1g heap, ~1.5Gi memory request). Increase for any sustained load.

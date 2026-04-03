@@ -19,8 +19,8 @@
 #     -f ../values-local-tls.yaml  <--- only if installing locally and you want to access via camunda.example.com
 #
 # Layer in scenario configs from STAMP on top:
-#   -f aws/configs/backup-s3/values.yaml
-#   -f generic/configs/auth/entra.yaml
+#   -f ../../s3/s3-backups-values.yaml
+#   -f ../../auth/entra/entra-oidc-values.yaml
 #   etc.
 #
 # ============================================================
