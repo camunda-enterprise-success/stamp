@@ -57,7 +57,7 @@ helm repo add camunda https://helm.camunda.io && helm repo update
 helm upgrade --install camunda camunda/camunda-platform \
   --version 8.8 \
   --namespace camunda --create-namespace \
-  -f base-values/orchestration-cluster/values-orchestration-cluster.yaml
+  -f base-values/values-orchestration-cluster.yaml
 ```
 
 Default login: `demo` / `demo`
@@ -68,20 +68,26 @@ Additional overlays are passed with `-f` flags in order, each overriding or exte
 
 ```bash
 # Local HTTPS with mkcert CA trust
--f base-values/values-local-tls.yaml
+helm upgrade --install camunda camunda/camunda-platform \
+  --version 8.8 \
+  --namespace camunda --create-namespace \
+  -f base-values/values-orchestration-cluster.yaml \
+  -f base-values/values-local-tls.yaml
 
 # S3 backups
--f backups/s3/s3-backup-values.yaml
-
-# Prometheus + Grafana observability
-# (deployed separately — see observability section below)
+helm upgrade --install camunda camunda/camunda-platform \
+  --version 8.8 \
+  --namespace camunda --create-namespace \
+  -f base-values/values-orchestration-cluster.yaml \
+  -f base-values/values-local-tls.yaml \
+  -f backups/s3/s3-backup-values.yaml
 ```
 
 ---
 
 ## Base Values
 
-### `base-values/orchestration-cluster/values-orchestration-cluster.yaml`
+### `base-values/values-orchestration-cluster.yaml`
 
 The core starting point for a TAM-assisted deployment. Key characteristics:
 
@@ -102,7 +108,7 @@ Overlay for local development environments using a [mkcert](https://github.com/F
 | Java (WebModeler restapi, Connectors, Identity, Optimize, Orchestration/Zeebe) | `initContainer` copies JVM cacerts, imports CA via `keytool`, sets `JAVA_TOOL_OPTIONS` |
 | Node.js (WebModeler webapp, websockets, Console) | `NODE_EXTRA_CA_CERTS` env var |
 
-**Prerequisite:** Create the ConfigMap before installing:
+**Prerequisite:** Ensure the ConfigMap is created by the [camunda-deployment-references](https://github.com/camunda/camunda-deployment-references) repository before installing:
 ```bash
 ./procedure/certs-create-ca-configmap.sh
 ```
