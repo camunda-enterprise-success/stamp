@@ -1,0 +1,84 @@
+global:
+  security:
+    authentication:
+      method: oidc
+  identity:
+    auth:
+      enabled: true
+      issuer: https://login.microsoftonline.com/cbd46654-4f74-4332-a490-69f0f071ba9f/v2.0
+      issuerBackendUrl: https://login.microsoftonline.com/cbd46654-4f74-4332-a490-69f0f071ba9f/v2.0
+      tokenUrl: https://login.microsoftonline.com/cbd46654-4f74-4332-a490-69f0f071ba9f/oauth2/v2.0/token
+      jwksUrl: https://login.microsoftonline.com/cbd46654-4f74-4332-a490-69f0f071ba9f/discovery/v2.0/keys
+      authUrl: https://login.microsoftonline.com/cbd46654-4f74-4332-a490-69f0f071ba9f/oauth2/v2.0/authorize
+      publicIssuerUrl: https://login.microsoftonline.com/cbd46654-4f74-4332-a490-69f0f071ba9f/v2.0
+      type: "MICROSOFT"
+      identity:
+        clientId: a6c00e10-77d0-48cc-a817-2bac3d1e782c
+        audience: a6c00e10-77d0-48cc-a817-2bac3d1e782c
+        secret:
+          existingSecret: entra-client-credentials
+          existingSecretKey: client-secret
+        # admin oid
+        initialClaimValue: <your-entra-user-oid>
+        initialClaimName: "oid"
+        redirectUrl: "https://camunda.example.com/managementidentity"
+      optimize:
+        clientId: a6c00e10-77d0-48cc-a817-2bac3d1e782c
+        audience: a6c00e10-77d0-48cc-a817-2bac3d1e782c
+        secret:
+          existingSecret: entra-client-credentials
+          existingSecretKey: client-secret
+        redirectUrl: "https://camunda.example.com/optimize"
+      webModeler:
+        clientId: a6c00e10-77d0-48cc-a817-2bac3d1e782c
+        audience: a6c00e10-77d0-48cc-a817-2bac3d1e782c
+        clientApiAudience: a6c00e10-77d0-48cc-a817-2bac3d1e782c
+        publicApiAudience: a6c00e10-77d0-48cc-a817-2bac3d1e782c
+        redirectUrl: "https://camunda.example.com/modeler"
+      console:
+        wellKnown: https://login.microsoftonline.com/cbd46654-4f74-4332-a490-69f0f071ba9f/v2.0/.well-known/openid-configuration
+        clientId: a6c00e10-77d0-48cc-a817-2bac3d1e782c
+        audience: a6c00e10-77d0-48cc-a817-2bac3d1e782c
+        secret:
+          existingSecret: entra-client-credentials
+          existingSecretKey: client-secret
+        tokenScope: a6c00e10-77d0-48cc-a817-2bac3d1e782c/.default
+        redirectUrl: "https://camunda.example.com/console"
+      orchestration:
+        clientId: a6c00e10-77d0-48cc-a817-2bac3d1e782c
+        audience: a6c00e10-77d0-48cc-a817-2bac3d1e782c
+        secret:
+          existingSecret: entra-client-credentials
+          existingSecretKey: client-secret
+        redirectUrl: "https://camunda.example.com/"
+
+orchestration:
+  security:
+    authentication:
+      method: oidc
+      oidc:
+        usernameClaim: oid
+        groupsClaim: "roles" # ENTRA outputs groups under the claim "roles", and must be enabled in Entra they do not appear by default
+        audience: a6c00e10-77d0-48cc-a817-2bac3d1e782c
+        clientId: a6c00e10-77d0-48cc-a817-2bac3d1e782c
+        redirectUrl: https://camunda.example.com/
+        secret:
+          existingSecret: entra-client-credentials
+          existingSecretKey: client-secret
+    initialization:
+      defaultRoles:
+        admin:
+          users:
+            - <your-entra-user-oid>
+
+identityPostgresql:
+  enabled: true
+  auth:
+    # Part of the base-values camunda-credentials-secret
+    existingSecret: camunda-credentials
+    secretKeys:
+      userPasswordKey: identity-postgresql-user-password
+      adminPasswordKey: identity-postgresql-admin-password
+
+identityKeycloak:
+  enabled: false
