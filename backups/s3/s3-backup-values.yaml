@@ -6,6 +6,8 @@ orchestration:
       value: "S3"
     - name: ZEEBE_BROKER_DATA_BACKUP_S3_BUCKETNAME
       value: "camunda-backups"
+    - name: ZEEBE_BROKER_DATA_BACKUP_S3_REGION
+      value: "us-west-1"
     - name: ZEEBE_BROKER_DATA_BACKUP_S3_ACCESSKEY
       valueFrom:
         secretKeyRef:
@@ -16,8 +18,6 @@ orchestration:
         secretKeyRef:
           name: camunda-s3-backup-credentials
           key: secret-key
-    - name: ZEEBE_BROKER_DATA_BACKUP_S3_REGION
-      value: "us-west-1"
 
 optimize:
   env:
@@ -26,8 +26,6 @@ optimize:
 
 elasticsearch:
   master:
-    # Expose the S3 credentials from the Kubernetes secret as env vars
-    # so the init script can read them
     extraEnvVars:
       - name: ELASTICSEARCH_S3_CLIENT_ACCESS_KEY
         valueFrom:
