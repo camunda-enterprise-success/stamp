@@ -19,7 +19,7 @@ A client (app registration) has already been created in Entra for STAMP. You nee
 
 1. Sign in to Okta and navigate to the **Azure AD Dev Tenant**.
 2. Navigate to **Applications → App registrations**.
-3. Find and select the STAMP app registration (Client ID: `a6c00e10-77d0-48cc-a817-2bac3d1e782c`).
+3. Find and select the `tam-stamp-client` app registration (Client ID: `a6c00e10-77d0-48cc-a817-2bac3d1e782c`).
 
 
 4. In the left-hand menu, select **Certificates & secrets**.
@@ -71,7 +71,7 @@ initialClaimValue: <your-entra-user-oid>
 
 **2. Under `orchestration.security.initialization.defaultRoles.admin.users`:**
 ```yaml
-- initialClaimValue: <your-entra-user-oid>
+- <your-entra-user-oid>
 ```
 
 Also update the `redirectUrl` fields across all components to reflect your actual domain, replacing `camunda.example.com` if that is not the domain you are using.
@@ -85,7 +85,8 @@ Apply the values file to your Helm release:
 ```bash
 helm upgrade --install camunda camunda/camunda-platform \
   -f ../../base-values/orchestration-and-management-cluster-values.yaml \
-  -f entra-oidc-values.yaml
+  -f ../../base-values/values-local-tls.yaml \
+  -f entra-oidc-values.yaml 
 ```
 
 ---

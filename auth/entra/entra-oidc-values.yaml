@@ -21,7 +21,7 @@ global:
         # admin oid
         initialClaimValue: <your-entra-user-oid>
         initialClaimName: "oid"
-        redirectUrl: "https://camunda.example.com/identity"
+        redirectUrl: "https://camunda.example.com/managementidentity"
       optimize:
         clientId: a6c00e10-77d0-48cc-a817-2bac3d1e782c
         audience: a6c00e10-77d0-48cc-a817-2bac3d1e782c
@@ -50,7 +50,7 @@ global:
         secret:
           existingSecret: entra-client-credentials
           existingSecretKey: client-secret
-        redirectUrl: "https://camunda.example.com/orchestration"
+        redirectUrl: "https://camunda.example.com/"
 
 orchestration:
   security:
@@ -69,4 +69,16 @@ orchestration:
       defaultRoles:
         admin:
           users:
-            - initialClaimValue: <your-entra-user-oid>
+            - <your-entra-user-oid>
+
+identityPostgresql:
+  enabled: true
+  auth:
+    # Part of the base-values camunda-credentials-secret
+    existingSecret: camunda-credentials
+    secretKeys:
+      userPasswordKey: identity-postgresql-user-password
+      adminPasswordKey: identity-postgresql-admin-password
+
+identityKeycloak:
+  enabled: false
