@@ -2,7 +2,7 @@
 
 STAMP is an opinionated, modular Helm values library for deploying and configuring **Camunda 8.8** in customer environments. It is designed to let TAMs quickly layer scenario-specific configurations on top of a tested baseline, rather than building values files from scratch each time.
 
-> **Companion library:** STAMP is intended to be used alongside the official [camunda-deployment-references](https://github.com/camunda/camunda-deployment-references) repository. That repo provides reference architectures and IaC; STAMP provides TAM-focused overlays, runbooks, and scenario configs that layer on top of those foundations.
+> **Companion library:** STAMP is intended to be used alongside the official [camunda-deployment-references](https://github.com/camunda/camunda-deployment-references) repository. That repo provides reference architectures and IaC; STAMP provides TAM-focused overlays, runbooks, and scenario configurations that layer on top of those foundations.
 
 ---
 
