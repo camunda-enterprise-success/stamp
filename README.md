@@ -55,7 +55,7 @@ stamp/
 helm repo add camunda https://helm.camunda.io && helm repo update
 
 helm upgrade --install camunda camunda/camunda-platform \
-  --version 8.8 \
+  --version 13.7.0 \
   --namespace camunda --create-namespace \
   -f base-values/values-orchestration-cluster.yaml
 ```
@@ -69,7 +69,7 @@ Additional overlays are passed with `-f` flags in order, each overriding or exte
 ```bash
 # Local HTTPS with mkcert CA trust
 helm upgrade --install camunda camunda/camunda-platform \
-  --version 8.8 \
+  --version 13.7.0 \
   --namespace camunda --create-namespace \
   -f base-values/values-orchestration-cluster.yaml \
   -f base-values/values-local-tls.yaml
