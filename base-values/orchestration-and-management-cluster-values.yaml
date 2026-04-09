@@ -18,7 +18,7 @@
 #   helm upgrade --install camunda camunda/camunda-platform \
 #     --version 13.7.0 \
 #     --namespace camunda --create-namespace \
-#     -f values-combined-cluster.yaml \
+#     -f orchestration-and-management-cluster-values.yaml \
 #     -f ../values-local-tls.yaml  <--- only if installing locally and you want to access via camunda.example.com
 #
 # Layer in scenario configs from STAMP on top:
