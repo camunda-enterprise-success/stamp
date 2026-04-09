@@ -13,8 +13,8 @@
 # Usage:
 #   helm repo add camunda https://helm.camunda.io && helm repo update
 #   helm upgrade --install camunda camunda/camunda-platform \
-#     --version 8.8 \
-#     --namespace camunda --create-namespace \
+#     --version 13.7.0 \
+#     --namespace orchestration --create-namespace \
 #     -f values-orchestration-cluster.yaml \
 #     -f ../values-local-tls.yaml  <--- only if installing locally and you want to access via camunda.example.com
 #
@@ -102,7 +102,7 @@ elasticsearch:
         cpu: 2
         memory: 3Gi
 
-# Explicitly disable components that require OIDC / Management Identity
+# Explicitly disable Management Components
 console:
   enabled: false
 

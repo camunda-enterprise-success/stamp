@@ -1,0 +1,244 @@
+# STAMP: Base values.yaml for Camunda 8.8 - Combined Cluster
+# ============================================================
+# This is an opinionated 1-node starting point for a TAM-assisted
+# deployment of all Camunda components in a single cluster.
+#
+# Uses OIDC authentication via Keycloak, login with:
+#  user: demo
+#  password: demo (see camunda-credentials secret: identity-firstuser-password)
+#
+# This deploys Elasticsearch via subchart, with minimal resources and only 1 master node.
+# Please edit the Elasticsearch section as needed for larger setups.
+#
+# Prerequisites:
+#   kubectl apply -f camunda-credentials-secret.yaml -n camunda
+#
+# Usage:
+#   helm repo add camunda https://helm.camunda.io && helm repo update
+#   helm upgrade --install camunda camunda/camunda-platform \
+#     --version 13.7.0 \
+#     --namespace camunda --create-namespace \
+#     -f values-combined-cluster.yaml \
+#     -f ../values-local-tls.yaml  <--- only if installing locally and you want to access via camunda.example.com
+#
+# Layer in scenario configs from STAMP on top:
+#   -f ../../s3/s3-backups-values.yaml
+#   -f ../../auth/entra/entra-oidc-values.yaml
+#   etc.
+#
+# Enables: Orchestration Cluster (Zeebe), Connectors, Console, Web Modeler, Optimize, Identity, Keycloak
+# ============================================================
+
+global:
+  security:
+    authentication:
+      method: oidc
+  
+  identity:
+    enabled: true
+    auth:
+      enabled: true
+      type: KEYCLOAK
+      publicIssuerUrl: https://camunda.example.com/auth/realms/camunda-platform
+      issuer: https://camunda.example.com/auth/realms/camunda-platform
+      issuerBackendUrl: http://camunda-keycloak:80/auth/realms/camunda-platform
+      
+      console:
+        redirectUrl: https://camunda.example.com/console
+      
+      identity:
+        redirectUrl: https://camunda.example.com/managementidentity
+      
+      optimize:
+        redirectUrl: https://camunda.example.com/optimize
+        secret:
+          existingSecret: camunda-credentials
+          existingSecretKey: identity-optimize-client-token
+      
+      webModeler:
+        redirectUrl: https://camunda.example.com/modeler
+  
+  ingress:
+    enabled: true
+    className: nginx
+    host: camunda.example.com
+    annotations:
+      # Required for OIDC: Keycloak sends large JWT tokens in headers
+      nginx.ingress.kubernetes.io/proxy-buffer-size: 128k
+    tls:
+      enabled: true
+      secretName: camunda-platform
+  
+  elasticsearch:
+    enabled: true
+
+connectors:
+  enabled: true
+  inbound:
+    mode: disabled
+  resources:
+    requests:
+      cpu: 0.1
+      memory: 256Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
+  security:
+    authentication:
+      oidc:
+        secret:
+          existingSecret: camunda-credentials
+          existingSecretKey: identity-connectors-client-token
+
+# Deploy Elasticsearch via subchart -- resize as needed
+elasticsearch:
+  enabled: true
+  master:
+    replicaCount: 1
+    persistence:
+      size: 15Gi
+    # Increase sizing for better stability
+    heapSize: 1g
+    resources:
+      requests:
+        cpu: 0.5
+        memory: 1536Mi
+      limits:
+        cpu: 2
+        memory: 3Gi
+
+identity:
+  enabled: true
+  contextPath: /managementidentity
+  fullURL: https://camunda.example.com/managementidentity
+  
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  
+  firstUser:
+    enabled: true
+    username: demo
+    email: admin@camunda.local
+    firstName: Demo
+    lastName: User
+    secret:
+      existingSecret: camunda-credentials
+      existingSecretKey: identity-firstuser-password
+
+identityKeycloak:
+  enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+optimize:
+  enabled: true
+  contextPath: /optimize
+  # Elasticsearch migration is not needed when using bundled ES
+  migration:
+    enabled: false
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+# Reduce Zeebe resources for local development
+orchestration:
+  contextPath: /
+  clusterSize: '1'
+  partitionCount: '1'
+  replicationFactor: '1'
+  pvcSize: 10Gi
+  resources:
+    requests:
+      cpu: 300m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  ingress:
+    grpc:
+      enabled: true
+      className: nginx
+      host: zeebe-camunda.example.com
+      tls:
+        enabled: true
+        secretName: camunda-platform
+  security:
+    authentication:
+      oidc:
+        secret:
+          existingSecret: camunda-credentials
+          existingSecretKey: identity-orchestration-client-token
+        redirectUrl: https://camunda.example.com
+    initialization:
+      defaultRoles:
+        admin:
+          users:
+            - admin
+
+console:
+  enabled: true
+  contextPath: /console
+  resources:
+    requests:
+      cpu: 0.05
+      memory: 64Mi
+    limits:
+      cpu: 0.5
+      memory: 256Mi
+
+webModeler:
+  enabled: true
+  contextPath: /modeler
+  restapi:
+    mail:
+      fromAddress: noreply@camunda.local
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+  webapp:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  websockets:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+webModelerPostgresql:
+  enabled: true
+  auth:
+    existingSecret: camunda-credentials
+  primary:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 1000m
+        memory: 512Mi
