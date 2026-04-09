@@ -1,15 +1,21 @@
 orchestration:
   env:
     - name: CAMUNDA_DATA_BACKUP_REPOSITORYNAME
-      value: "my-s3-repository-from-secondary-storage"
+      value: "camunda"
     - name: ZEEBE_BROKER_DATA_BACKUP_STORE
       value: "S3"
     - name: ZEEBE_BROKER_DATA_BACKUP_S3_BUCKETNAME
-      value: "my-s3-bucket"
+      value: "camunda-backups"
     - name: ZEEBE_BROKER_DATA_BACKUP_S3_ACCESSKEY
-      value: ""
+      valueFrom:
+        secretKeyRef:
+          name: camunda-s3-backup-credentials
+          key: access-key
     - name: ZEEBE_BROKER_DATA_BACKUP_S3_SECRETKEY
-      value: ""
+      valueFrom:
+        secretKeyRef:
+          name: camunda-s3-backup-credentials
+          key: secret-key
     - name: ZEEBE_BROKER_DATA_BACKUP_S3_REGION
       value: "us-west-1"
 
@@ -17,3 +23,30 @@ optimize:
   env:
     - name: CAMUNDA_OPTIMIZE_BACKUP_REPOSITORY_NAME
       value: "my_s3_repository"
+
+elasticsearch:
+  master:
+    # Expose the S3 credentials from the Kubernetes secret as env vars
+    # so the init script can read them
+    extraEnvVars:
+      - name: ELASTICSEARCH_S3_CLIENT_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: camunda-s3-backup-credentials
+            key: access-key
+      - name: ELASTICSEARCH_S3_CLIENT_SECRET_KEY
+        valueFrom:
+          secretKeyRef:
+            name: camunda-s3-backup-credentials
+            key: secret-key
+
+    # Init script to populate the keystore before Elasticsearch starts
+    initScripts:
+      keystore-s3.sh: |
+        #!/bin/sh
+        set -e
+        elasticsearch-keystore create --silent || true
+        echo "${ELASTICSEARCH_S3_CLIENT_ACCESS_KEY}" \
+          | elasticsearch-keystore add --stdin --force s3.client.default.access_key
+        echo "${ELASTICSEARCH_S3_CLIENT_SECRET_KEY}" \
+          | elasticsearch-keystore add --stdin --force s3.client.default.secret_key
