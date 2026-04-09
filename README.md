@@ -40,7 +40,7 @@ stamp/
     │   ├── prometheus-grafana-values.yaml  # kube-prometheus-stack values
     │   └── prometheus-grafana-runbook.md   # Setup and wiring guide
     ├── !!!-dynatrace/                      # 🚧 Dynatrace integration
-    └── !!!-cloudwatch/                     # 🚧 CloudWatch integration
+    └── cloudwatch/                         # CloudWatch integration
 ```
 
 > Directories prefixed with `!!!-` are reserved placeholders for future scenarios. They are intentionally empty.
