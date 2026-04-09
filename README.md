@@ -26,8 +26,8 @@ stamp/
 │
 ├── backups/                              # Backup destination overlays
 │   ├── s3/
-│   │   ├── s3-backup-values.yaml         # 🚧 S3 backup Helm values
-│   │   └── s3-backup-runbook.md          # 🚧 S3 backup runbook
+│   │   ├── s3-backup-values.yaml         # S3 backup Helm values
+│   │   └── s3-backup-runbook.md          # S3 backup runbook
 │   ├── azure-blob/
 │   │   ├── azure-blob-backup-values.yaml # 🚧 
 │   │   └── azure-blob-backup-runbook.md  # 🚧 
