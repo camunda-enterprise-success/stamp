@@ -1,0 +1,19 @@
+orchestration:
+  env:
+    - name: CAMUNDA_DATA_BACKUP_REPOSITORYNAME
+      value: "my-s3-repository-from-secondary-storage"
+    - name: ZEEBE_BROKER_DATA_BACKUP_STORE
+      value: "S3"
+    - name: ZEEBE_BROKER_DATA_BACKUP_S3_BUCKETNAME
+      value: "my-s3-bucket"
+    - name: ZEEBE_BROKER_DATA_BACKUP_S3_ACCESSKEY
+      value: ""
+    - name: ZEEBE_BROKER_DATA_BACKUP_S3_SECRETKEY
+      value: ""
+    - name: ZEEBE_BROKER_DATA_BACKUP_S3_REGION
+      value: "us-west-1"
+
+optimize:
+  env:
+    - name: CAMUNDA_OPTIMIZE_BACKUP_REPOSITORY_NAME
+      value: "my_s3_repository"

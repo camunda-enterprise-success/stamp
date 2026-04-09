@@ -1,6 +1,6 @@
 # Runbook: Observability — Prometheus + Grafana for Camunda
 
-**Related config:** [`../configs/observability/values-prometheus-grafana.yaml`](../configs/observability/values-prometheus-grafana.yaml)
+**Related config:** [`prometheus-grafana-values.yaml`](prometheus-grafana-values.yaml)
 
 ## Overview
 
@@ -21,7 +21,7 @@ Alertmanager is **not included** in this setup.
 
 ## 1. Review the Values File
 
-Before deploying, open [`../../configs/observability/values-prometheus-grafana.yaml`](../configs/observability/values-prometheus-grafana.yaml) and set:
+Before deploying, open [`prometheus-grafana-values.yaml`](prometheus-grafana-values.yaml) and set:
 
 | Field | Location | Notes                                                                                                                                                  |
 |---|---|--------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -41,7 +41,7 @@ helm repo update
 helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
   --namespace monitoring \
   --create-namespace \
-  -f ../../configs/observability/values-prometheus-grafana.yaml
+  -f values-prometheus-grafana.yaml
   
 ```
 
@@ -60,8 +60,8 @@ You should see pods for: `prometheus-server`, `grafana`, `kube-state-metrics`, a
 Add the following to your Camunda `values.yaml` . This deploys ServiceMonitor resources for all Camunda components.
 
 ```yaml
-  prometheusServiceMonitor:
-    enabled: true
+prometheusServiceMonitor:
+  enabled: true
 ```
 
 Verify ServiceMonitors were created
@@ -69,7 +69,7 @@ Verify ServiceMonitors were created
 kubectl get servicemonitor -n camunda
 ```
 
-The STAMP values file sets `serviceMonitorSelectorNilUsesHelmValues: false` and `serviceMonitorNamespaceSelector: any: true`, so Prometheus will pick these up automatically without requiring any specific labels, and you can deploy in any namespace.
+The STAMP values file sets `serviceMonitorSelectorNilUsesHelmValues: false` and `serviceMonitorNamespaceSelector: {}`, so Prometheus will pick these up automatically without requiring any specific labels, and you can deploy in any namespace.
 
 ---
 
