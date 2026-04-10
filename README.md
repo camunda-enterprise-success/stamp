@@ -20,7 +20,7 @@ stamp/
 │   └── !!!-management-cluster/                 # 🚧 Management cluster config
 │
 ├── auth/                                 # Authentication overlays (layer on top of base)
-│   ├── !!!-entra/                        # 🚧 Microsoft Entra ID / OIDC
+│   ├── entra/                            # Microsoft Entra ID / OIDC
 │   ├── !!!-keycloak/                     # 🚧 Keycloak OIDC
 │   └── !!!-irsa/                         # 🚧 AWS IRSA
 │
