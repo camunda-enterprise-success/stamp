@@ -73,13 +73,99 @@ export AWS_REGION=us-west-1
 
 ---
 
-## 5. Run Terraform
+## 5. Navigate to the correct infrastructure directory
+
+Clone the [camunda-deployment-references](https://github.com/camunda/camunda-deployment-references) repository if you have not already:
+
+```bash
+git clone https://github.com/camunda/camunda-deployment-references.git
+cd camunda-deployment-references
+```
+
+Then navigate to the directory matching the infrastructure type you want to deploy. Available AWS options:
+
+| Directory | Description |
+|---|---|
+| `aws/kubernetes/eks-single-region` | Standard single-region EKS cluster |
+| `aws/kubernetes/eks-single-region-spot-instances` | Single-region EKS with spot instances (cost-optimized) |
+| `aws/kubernetes/eks-dual-region` | High availability across two regions |
+| `aws/kubernetes/eks-dual-region-karpenter` | Dual-region with Karpenter autoscaler |
+| `aws/compute/ec2-single-region` | EC2-based (non-Kubernetes) |
+| `aws/compute/ec2-single-region-spot-instances` | EC2-based with spot instances |
+
+For example, for a standard single-region EKS cluster:
+
+```bash
+cd aws/kubernetes/eks-single-region/terraform/cluster
+```
+
+---
+
+## 6. Create an S3 Bucket for Terraform State
+
+Terraform tracks all the infrastructure it creates in a **state file**. This file is stored in an S3 bucket so that:
+- Multiple team members can work on the same infrastructure without conflicts
+- The state is preserved between sessions and machines
+- Terraform can detect and manage changes to existing infrastructure
+
+> ⚠️ **The S3 bucket must exist before running `terraform init`** — if it doesn't, the backend configuration will fail.
+
+Create the bucket (choose a unique name):
+
+```bash
+aws s3api create-bucket \
+  --bucket your-terraform-state-bucket \
+  --region us-west-1 \
+  --create-bucket-configuration LocationConstraint=us-west-1
+```
+
+Then enable versioning so you can recover previous state files if something goes wrong:
+
+```bash
+aws s3api put-bucket-versioning \
+  --bucket your-terraform-state-bucket \
+  --versioning-configuration Status=Enabled
+```
+
+Then update the `config.tf` file in your chosen infrastructure directory to reference your bucket:
+
+```hcl
+terraform {
+  backend "s3" {
+    bucket = "your-terraform-state-bucket"
+    key    = "terraform.tfstate"
+    region = "us-west-1"
+  }
+}
+```
+
+> ⚠️ **Never delete the S3 bucket or state file** while infrastructure is running. Terraform will lose track of what it created, making it very difficult to manage or destroy resources.
+
+---
+
+## 7. Run Terraform
 
 ```bash
 terraform init
+```
+Downloads and installs the required providers and modules. Run this once when you first set up, or when dependencies change.
+
+```bash
 terraform plan
+```
+Previews what Terraform *will* do before making any changes — what will be created, modified, or destroyed. Nothing in AWS is touched.
+
+```bash
 terraform apply
 ```
+Actually creates the infrastructure in AWS. Shows the plan one more time and asks you to type `yes` to confirm before proceeding.
+
+```bash
+terraform destroy
+```
+Tears down **all infrastructure** managed by Terraform in the current directory. Shows a list of everything that will be deleted and asks you to type `yes` to confirm.
+
+> ⚠️ This is irreversible. All AWS resources (EKS cluster, databases, networking, etc.) will be permanently deleted. Make sure you have backups of any important data before running this.
 
 ---
 
