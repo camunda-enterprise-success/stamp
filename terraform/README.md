@@ -6,7 +6,7 @@ This repository contains runbooks for deploying Camunda 8 Self-Managed infrastru
 > - [Terraform](https://developer.hashicorp.com/terraform/install) CLI installed
 
 > [!CAUTION]
-> Cloud resources cost real money. Only create infrastructure when you need it and **delete it as soon as you are done.** Use `terraform destroy` to tear down all resources when finished. Leaving resources running unnecessarily will result in unexpected charges to the company.
+> Cloud resources are costly. Only create infrastructure when you need it and **delete it as soon as you are done.** Use `terraform destroy` to tear down all resources when finished.
 
 ## Cloud Provider Runbooks
 
