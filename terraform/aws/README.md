@@ -162,14 +162,14 @@ cat cluster.tf
 
 Key values to change:
 
-| Variable | Description | Notes |
-|---|---|---|
-| `eks_cluster_name` | Name of your EKS cluster | Choose something meaningful e.g. `camunda-cluster-prod` |
-| `eks_cluster_region` | AWS region to deploy into | Must match your `AWS_REGION` env var |
-| `kubernetes_version` | EKS Kubernetes version | Verify it is supported in your region before applying |
-| `np_desired_node_count` | Number of worker nodes | Default is 4 — consider reducing to 2 for testing to save cost |
-| `single_nat_gateway` | Use one NAT gateway instead of three | Default is `false` (3 NAT gateways ~$96/month) — set to `true` for testing to save cost |
-| `private_vpc` | Restrict cluster to private network only | Default is `false`, meaning the cluster is publicly accessible — review before deploying to production |
+| Variable | Description | Notes                                                                                                             |
+|---|---|-------------------------------------------------------------------------------------------------------------------|
+| `eks_cluster_name` | Name of your EKS cluster | Choose something meaningful e.g. `your-name-cluster-camundaVersion`                                               |
+| `eks_cluster_region` | AWS region to deploy into | Must match your `AWS_REGION` env var                                                                              |
+| `np_instance_types` | The EC2 instance type for worker nodes — use t3.large for small internal tests, m6i.xlarge for production-like workloads. |
+| `np_desired_node_count` | Number of worker nodes | Default is 4 — consider reducing to 2 for testing to save cost. Note that each Zeebe broker requires its own node. |
+| `single_nat_gateway` | Use one NAT gateway instead of three | Default is `false` (3 NAT gateways ~$96/month) — set to `true` for testing to save cost                           |
+| `private_vpc` | Restrict cluster to private network only | Default is `false`, meaning the cluster is publicly accessible                                                    |
 
 > [!WARNING]
 > Make sure `eks_cluster_region` matches your `AWS_REGION` environment variable — a mismatch will cause subnet availability zone errors during apply.
