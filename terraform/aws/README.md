@@ -1,41 +1,104 @@
-# Camunda AWS & Azure Deployment Runbooks
+# AWS CLI Authentication Runbook (SSO via Okta)
 
-This repository contains runbooks for deploying Camunda 8 Self-Managed infrastructure using Terraform on AWS and Azure.
-
-> [!CAUTION]
-> Cloud resources are costly. Only create infrastructure when you need it and **delete it as soon as you are done.** Use `terraform destroy` to tear down all resources when finished.
-
-## Cloud Provider Runbooks
-
-- [AWS CLI Authentication & Setup](./aws-sso-runbook.md)
-- [Azure CLI Authentication & Setup](./azure-cli-runbook.md)
+> **Prerequisites**
+> - [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) installed
+> - Access to AWS via Okta — if you don't have an AWS tile, ask IT to add it
+> - [Terraform](https://developer.hashicorp.com/terraform/install) CLI installed
 
 ---
 
-## Navigating the Infrastructure Repository
+## 1. Configure SSO (one-time setup)
 
-All infrastructure code lives in the [camunda-deployment-references](https://github.com/camunda/camunda-deployment-references) repository.
+Open `~/.aws/config` and add the following, replacing the placeholder values:
 
-Clone it if you haven't already:
+```ini
+[default]
+sso_start_url = https://d-9967231e9d.awsapps.com/start
+sso_region = eu-central-1
+sso_account_id = YOUR_ACCOUNT_ID
+sso_role_name = SystemAdministrator
+region = YOUR_REGION
+output = json
+```
+The `sso_region` is ALWAYS `eu-central-1`
+You can choose your own [default region](https://docs.aws.amazon.com/global-infrastructure/latest/regions/aws-regions.html) to create resources in.
+
+> **Finding your Account ID:**
+> 1. Log in to AWS via your Okta dashboard
+> 2. Once in the AWS console, click your **username in the top-right corner**
+> 3. Your 12-digit Account ID is shown in the dropdown (e.g. `655394773887`)
+> 4. Alternatively, it is visible on the [AWS access portal](https://d-9967231e9d.awsapps.com/start) next to your assigned account name
+
+---
+
+## 2. Log in
+
+```bash
+aws sso login
+```
+
+This opens a browser window — authenticate with your Camunda Okta credentials.
+
+---
+
+## 3. Verify credentials
+
+```bash
+aws sts get-caller-identity
+```
+
+You should see your account ID, user ID, and ARN. If this fails, re-run `aws sso login`.
+
+---
+
+## 4. Export credentials for Terraform
+
+Terraform doesn't natively support the SSO session config format, so you need to export your credentials as environment variables before running any Terraform commands:
+
+```bash
+aws configure export-credentials --format env
+```
+
+Copy and paste the three exported lines into your terminal. They look like:
+
+```bash
+export AWS_ACCESS_KEY_ID=...
+export AWS_SECRET_ACCESS_KEY=...
+export AWS_SESSION_TOKEN=...
+```
+
+Also set your [region](https://docs.aws.amazon.com/global-infrastructure/latest/regions/aws-regions.html) (us-west-1 is an example, you can change it to a region near you):
+
+```bash
+export AWS_REGION=us-west-1
+```
+
+---
+
+## 5. Navigate to the correct infrastructure directory
+
+Clone the [camunda-deployment-references](https://github.com/camunda/camunda-deployment-references) repository if you have not already:
 
 ```bash
 git clone https://github.com/camunda/camunda-deployment-references.git
 cd camunda-deployment-references
 ```
 
-Browse the available options for your cloud provider:
-- [AWS infrastructure options](https://github.com/camunda/camunda-deployment-references/tree/main/aws)
-- [Azure infrastructure options](https://github.com/camunda/camunda-deployment-references/tree/main/azure)
-
-Once you have chosen your infrastructure type, navigate into its `terraform` subdirectory — this is where all Terraform commands must be run from. For example:
+Create a fresh branch before making any changes — this keeps the original code intact and makes it easy to `git diff` against `main` to see exactly what you changed:
 
 ```bash
-# AWS
-cd aws/kubernetes/eks-single-region/terraform/cluster
-
-# Azure
-cd azure/kubernetes/aks-single-region/terraform/cluster
+git checkout -b my-aws-deployment
 ```
+
+Browse the available AWS infrastructure options here: [aws/ directory](https://github.com/camunda/camunda-deployment-references/tree/main/aws)
+
+Once you have chosen your infrastructure type, navigate into its `terraform` subdirectory — this is where all Terraform commands must be run from. For example, for a standard single-region EKS cluster:
+
+```bash
+cd aws/kubernetes/eks-single-region/terraform/cluster
+```
+
+> ⚠️ All `terraform` commands (`init`, `plan`, `apply`, `destroy`) must be run from within the `terraform` subdirectory of your chosen infrastructure type, not from the repo root.
 
 To confirm you are in the right place, check for a `config.tf` file:
 
@@ -45,54 +108,91 @@ ls config.tf
 
 If the file is not there, you are in the wrong directory.
 
-> [!WARNING]
-> All `terraform` commands must be run from within the `terraform` subdirectory of your chosen infrastructure type, not from the repo root.
-
 ---
 
-## Terraform State
+## 6. Create an S3 Bucket for Terraform State
 
-Terraform tracks all the infrastructure it creates in a **state file**. This file is stored remotely (S3 for AWS, Azure Storage Account for Azure) so that:
+Terraform tracks all the infrastructure it creates in a **state file**. This file is stored in an S3 bucket so that:
 - Multiple team members can work on the same infrastructure without conflicts
 - The state is preserved between sessions and machines
 - Terraform can detect and manage changes to existing infrastructure
 
-> [!WARNING]
-> The state storage must exist before running `terraform init` — if it doesn't, the backend configuration will fail.
+> ⚠️ **The S3 bucket must exist before running `terraform init`** — if it doesn't, the backend configuration will fail.
 
-> [!WARNING]
-> Never delete the state storage while infrastructure is running. Terraform will lose track of what it created, making it very difficult to manage or destroy resources.
-
-See your cloud-specific runbook for instructions on creating state storage.
-
----
-
-## Overriding Variables with `terraform.tfvars`
-
-Rather than editing the module files directly, you can override any Terraform variable by creating a `terraform.tfvars` file in your infrastructure directory. This keeps your customisations separate from the original code and makes it easy to see what you changed with `git diff`.
+Create the bucket (choose a unique name):
 
 ```bash
-touch terraform.tfvars
+aws s3api create-bucket \
+  --bucket your-terraform-state-bucket \
+  --region us-west-1 \
+  --create-bucket-configuration LocationConstraint=us-west-1
 ```
 
-Add any variables you want to override, for example:
+Then enable versioning so you can recover previous state files if something goes wrong:
+
+```bash
+aws s3api put-bucket-versioning \
+  --bucket your-terraform-state-bucket \
+  --versioning-configuration Status=Enabled
+```
+
+Then update the `config.tf` file in your chosen infrastructure directory to reference your bucket:
 
 ```hcl
-availability_zones    = ["us-west-1a", "us-west-1c"]
-np_desired_node_count = 2
-single_nat_gateway    = true
+terraform {
+  backend "s3" {
+    bucket = "your-terraform-state-bucket"
+    key    = "terraform.tfstate"
+    region = "us-west-1"
+  }
+}
 ```
 
-Terraform automatically picks up `terraform.tfvars` when you run `plan` or `apply` — no extra flags needed.
-
-> [!NOTE]
-> Check the `variables.tf` file in your chosen infrastructure directory for a full list of variables you can override.
+> ⚠️ **Never delete the S3 bucket or state file** while infrastructure is running. Terraform will lose track of what it created, making it very difficult to manage or destroy resources.
 
 ---
 
-## Running Terraform
+## 7. Configure `cluster.tf`
 
-These commands are the same regardless of cloud provider.
+Before running Terraform, review and update the `cluster.tf` file in your chosen infrastructure directory:
+
+```bash
+cat cluster.tf
+```
+
+Key values to change:
+
+| Variable | Description | Notes                                                                                                             |
+|---|---|-------------------------------------------------------------------------------------------------------------------|
+| `eks_cluster_name` | Name of your EKS cluster | Choose something meaningful e.g. `your-name-cluster-camundaVersion`                                               |
+| `eks_cluster_region` | AWS region to deploy into | Must match your `AWS_REGION` env var                                                                              |
+| `np_instance_types` | The EC2 instance type for worker nodes — use t3.large for small internal tests, m6i.xlarge for production-like workloads. |
+| `np_desired_node_count` | Number of worker nodes | Default is 4 — consider reducing to 2 for testing to save cost. Note that each Zeebe broker requires its own node. |
+| `single_nat_gateway` | Use one NAT gateway instead of three | Default is `false` (3 NAT gateways ~$96/month) — set to `true` for testing to save cost                           |
+| `private_vpc` | Restrict cluster to private network only | Default is `false`, meaning the cluster is publicly accessible                                                    |
+
+> [!WARNING]
+> Make sure `eks_cluster_region` matches your `AWS_REGION` environment variable — a mismatch will cause subnet availability zone errors during apply.
+
+### Overriding variables
+
+The safest approach is to make all your changes directly in `cluster.tf`. It is the main configuration file for your deployment and is designed to be edited. For example, to override availability zones:
+
+```hcl
+module "eks_cluster" {
+  source = "../../../../modules/eks-cluster"
+  ...
+  availability_zones = ["us-west-1a", "us-west-1c"]
+  ...
+}
+```
+
+> [!NOTE]
+> 4 x `m6i.xlarge` nodes plus 3 NAT gateways adds up quickly. If this is for testing, set `np_desired_node_count = 2` and `single_nat_gateway = true`.
+
+---
+
+## 8. Run Terraform
 
 ```bash
 terraform init
@@ -102,17 +202,41 @@ Downloads and installs the required providers and modules. Run this once when yo
 ```bash
 terraform plan
 ```
-Previews what Terraform *will* do before making any changes — what will be created, modified, or destroyed. Nothing in your cloud account is touched.
+Previews what Terraform *will* do before making any changes — what will be created, modified, or destroyed. Nothing in AWS is touched.
 
 ```bash
 terraform apply
 ```
-Actually creates the infrastructure. Shows the plan one more time and asks you to type `yes` to confirm before proceeding.
+Actually creates the infrastructure in AWS. Shows the plan one more time and asks you to type `yes` to confirm before proceeding.
 
 ```bash
 terraform destroy
 ```
 Tears down **all infrastructure** managed by Terraform in the current directory. Shows a list of everything that will be deleted and asks you to type `yes` to confirm.
 
-> [!WARNING]
-> This is irreversible. All cloud resources will be permanently deleted. Make sure you have backups of any important data before running this.
+> ⚠️ This is irreversible. All AWS resources (EKS cluster, databases, networking, etc.) will be permanently deleted. Make sure you have backups of any important data before running this.
+
+---
+
+## Refreshing an expired session
+
+SSO sessions expire after a few hours. When you see a `403` or `InvalidClientTokenId` error, refresh by repeating steps 2 and 4:
+
+```bash
+aws sso login
+aws configure export-credentials --format env
+# paste the exported lines
+export AWS_REGION=us-west-1
+```
+
+---
+
+## Troubleshooting
+
+| Error | Fix |
+|---|---|
+| `profile could not be found` | Check `~/.aws/config` exists and has a `[default]` block. Run `unset AWS_PROFILE`. |
+| `NoCredentialProviders` | You haven't logged in yet. Run `aws sso login`. |
+| `InvalidClientTokenId 403` | Session expired. Re-run `aws sso login` and re-export credentials. |
+| `Missing region value` | Run `export AWS_REGION=us-west-1`. |
+| `sso_region / sso_start_url missing` | Add both fields directly to the `[default]` profile in `~/.aws/config`. |
