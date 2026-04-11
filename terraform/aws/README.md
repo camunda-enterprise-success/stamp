@@ -84,6 +84,12 @@ git clone https://github.com/camunda/camunda-deployment-references.git
 cd camunda-deployment-references
 ```
 
+Create a fresh branch before making any changes — this keeps the original code intact and makes it easy to `git diff` against `main` to see exactly what you changed:
+
+```bash
+git checkout -b my-aws-deployment
+```
+
 Browse the available AWS infrastructure options here: [aws/ directory](https://github.com/camunda/camunda-deployment-references/tree/main/aws)
 
 Once you have chosen your infrastructure type, navigate into its `terraform` subdirectory — this is where all Terraform commands must be run from. For example, for a standard single-region EKS cluster:
@@ -146,7 +152,34 @@ terraform {
 
 ---
 
-## 7. Run Terraform
+## 7. Configure `cluster.tf`
+
+Before running Terraform, review and update the `cluster.tf` file in your chosen infrastructure directory:
+
+```bash
+cat cluster.tf
+```
+
+Key values to change:
+
+| Variable | Description | Notes |
+|---|---|---|
+| `eks_cluster_name` | Name of your EKS cluster | Choose something meaningful e.g. `camunda-cluster-prod` |
+| `eks_cluster_region` | AWS region to deploy into | Must match your `AWS_REGION` env var |
+| `kubernetes_version` | EKS Kubernetes version | Verify it is supported in your region before applying |
+| `np_desired_node_count` | Number of worker nodes | Default is 4 — consider reducing to 2 for testing to save cost |
+| `single_nat_gateway` | Use one NAT gateway instead of three | Default is `false` (3 NAT gateways ~$96/month) — set to `true` for testing to save cost |
+| `private_vpc` | Restrict cluster to private network only | Default is `false`, meaning the cluster is publicly accessible — review before deploying to production |
+
+> [!WARNING]
+> Make sure `eks_cluster_region` matches your `AWS_REGION` environment variable — a mismatch will cause subnet availability zone errors during apply.
+
+> [!NOTE]
+> 4 x `m6i.xlarge` nodes plus 3 NAT gateways adds up quickly. If this is for testing, set `np_desired_node_count = 2` and `single_nat_gateway = true`.
+
+---
+
+## 8. Run Terraform
 
 ```bash
 terraform init
