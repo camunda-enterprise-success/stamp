@@ -89,7 +89,7 @@ Then navigate to the directory matching the infrastructure type you want to depl
 | `aws/kubernetes/eks-single-region` | Standard single-region EKS cluster |
 | `aws/kubernetes/eks-single-region-spot-instances` | Single-region EKS with spot instances (cost-optimized) |
 | `aws/kubernetes/eks-dual-region` | High availability across two regions |
-| `aws/kubernetes/eks-dual-region-karpenter` | Dual-region with Karpenter autoscaler |
+| `aws/kubernetes/eks-dual-region-karpenter` | Dual-region with Karpenter  |
 | `aws/compute/ec2-single-region` | EC2-based (non-Kubernetes) |
 | `aws/compute/ec2-single-region-spot-instances` | EC2-based with spot instances |
 
