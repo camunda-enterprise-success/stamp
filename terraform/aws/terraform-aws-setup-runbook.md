@@ -82,22 +82,23 @@ git clone https://github.com/camunda/camunda-deployment-references.git
 cd camunda-deployment-references
 ```
 
-Then navigate to the directory matching the infrastructure type you want to deploy. Available AWS options:
+Browse the available AWS infrastructure options here: [aws/ directory](https://github.com/camunda/camunda-deployment-references/tree/main/aws)
 
-| Directory | Description |
-|---|---|
-| `aws/kubernetes/eks-single-region` | Standard single-region EKS cluster |
-| `aws/kubernetes/eks-single-region-spot-instances` | Single-region EKS with spot instances (cost-optimized) |
-| `aws/kubernetes/eks-dual-region` | High availability across two regions |
-| `aws/kubernetes/eks-dual-region-karpenter` | Dual-region with Karpenter  |
-| `aws/compute/ec2-single-region` | EC2-based (non-Kubernetes) |
-| `aws/compute/ec2-single-region-spot-instances` | EC2-based with spot instances |
-
-For example, for a standard single-region EKS cluster:
+Once you have chosen your infrastructure type, navigate into its `terraform` subdirectory — this is where all Terraform commands must be run from. For example, for a standard single-region EKS cluster:
 
 ```bash
 cd aws/kubernetes/eks-single-region/terraform/cluster
 ```
+
+> ⚠️ All `terraform` commands (`init`, `plan`, `apply`, `destroy`) must be run from within the `terraform` subdirectory of your chosen infrastructure type, not from the repo root.
+
+To confirm you are in the right place, check for a `config.tf` file:
+
+```bash
+ls config.tf
+```
+
+If the file is not there, you are in the wrong directory.
 
 ---
 
