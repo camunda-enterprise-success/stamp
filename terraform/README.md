@@ -2,6 +2,9 @@
 
 This repository contains runbooks for deploying Camunda 8 Self-Managed infrastructure using Terraform on AWS and Azure.
 
+> **Prerequisites**
+> - [Terraform](https://developer.hashicorp.com/terraform/install) CLI installed
+
 ## Cloud Provider Runbooks
 
 - [AWS CLI Authentication & Setup](./aws-sso-runbook.md)
