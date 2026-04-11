@@ -3,7 +3,7 @@
 > **Prerequisites**
 > - [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) installed
 > - Access to AWS via Okta — if you don't have an AWS tile, ask IT to add it
-> - [Terraform](https://developer.hashicorp.com/terraform/install)
+> - [Terraform](https://developer.hashicorp.com/terraform/install) CLI installed
 
 ---
 
