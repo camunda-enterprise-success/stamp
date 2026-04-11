@@ -171,6 +171,22 @@ Key values to change:
 | `single_nat_gateway` | Use one NAT gateway instead of three | Default is `false` (3 NAT gateways ~$96/month) — set to `true` for testing to save cost                           |
 | `private_vpc` | Restrict cluster to private network only | Default is `false`, meaning the cluster is publicly accessible                                                    |
 
+### Overriding variables without editing `cluster.tf`
+
+If you need to override other variables (for example, to specify availability zones for regions that don't have 3 AZs like `us-west-1`), create a `terraform.tfvars` file in the same directory:
+
+```bash
+touch terraform.tfvars
+```
+
+Add your overrides, for example:
+
+```hcl
+availability_zones = ["us-west-1a", "us-west-1c"]
+```
+
+Terraform automatically picks up `terraform.tfvars` when you run `apply`. This keeps your overrides separate from `cluster.tf` and is cleaner than editing the module directly.
+
 > [!WARNING]
 > Make sure `eks_cluster_region` matches your `AWS_REGION` environment variable — a mismatch will cause subnet availability zone errors during apply.
 
