@@ -59,6 +59,12 @@ git clone https://github.com/camunda/camunda-deployment-references.git
 cd camunda-deployment-references
 ```
 
+Create a fresh branch before making any changes — this keeps the original code intact and makes it easy to `git diff` against `main` to see exactly what you changed:
+
+```bash
+git checkout -b my-azure-deployment
+```
+
 Browse the available Azure infrastructure options here: [azure/ directory](https://github.com/camunda/camunda-deployment-references/tree/main/azure)
 
 Once you have chosen your infrastructure type, navigate into its `terraform` subdirectory — this is where all Terraform commands must be run from. For example, for a standard single-region AKS cluster:
@@ -86,7 +92,8 @@ Terraform tracks all the infrastructure it creates in a **state file**. For Azur
 - The state is preserved between sessions and machines
 - Terraform can detect and manage changes to existing infrastructure
 
-> ⚠️ **The storage account must exist before running `terraform init`** — if it doesn't, the backend configuration will fail.
+> [!WARNING]
+> The storage account must exist before running `terraform init` — if it doesn't, the backend configuration will fail.
 
 Create a resource group and storage account:
 
@@ -120,7 +127,8 @@ terraform {
 }
 ```
 
-> ⚠️ **Never delete the storage account or state file** while infrastructure is running. Terraform will lose track of what it created, making it very difficult to manage or destroy resources.
+> [!WARNING]
+> Never delete the storage account or state file while infrastructure is running. Terraform will lose track of what it created, making it very difficult to manage or destroy resources.
 
 ---
 
@@ -146,7 +154,8 @@ terraform destroy
 ```
 Tears down **all infrastructure** managed by Terraform in the current directory. Shows a list of everything that will be deleted and asks you to type `yes` to confirm.
 
-> ⚠️ This is irreversible. All Azure resources (AKS cluster, databases, networking, etc.) will be permanently deleted. Make sure you have backups of any important data before running this.
+> [!WARNING]
+> This is irreversible. All Azure resources (AKS cluster, databases, networking, etc.) will be permanently deleted. Make sure you have backups of any important data before running this.
 
 ---
 
