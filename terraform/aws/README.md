@@ -20,8 +20,8 @@ sso_role_name = SystemAdministrator
 region = YOUR_REGION
 output = json
 ```
-> [!NOTE]
-> The `sso_region` is ALWAYS `eu-central-1`. You can choose your own [default region](https://docs.aws.amazon.com/global-infrastructure/latest/regions/aws-regions.html) to create resources in.
+The `sso_region` is ALWAYS `eu-central-1`
+You can choose your own [default region](https://docs.aws.amazon.com/global-infrastructure/latest/regions/aws-regions.html) to create resources in.
 
 > **Finding your Account ID:**
 > 1. Log in to AWS via your Okta dashboard
@@ -53,9 +53,7 @@ You should see your account ID, user ID, and ARN. If this fails, re-run `aws sso
 
 ## 4. Export credentials for Terraform
 
-> [!IMPORTANT]
-> Terraform doesn't natively support the SSO session config format. You must export your credentials as environment variables before running any Terraform commands, every time you log in.
-
+Terraform doesn't natively support the SSO session config format, so you need to export your credentials as environment variables before running any Terraform commands:
 
 ```bash
 aws configure export-credentials --format env
@@ -113,8 +111,7 @@ Terraform tracks all the infrastructure it creates in a **state file**. This fil
 - The state is preserved between sessions and machines
 - Terraform can detect and manage changes to existing infrastructure
 
-> [!WARNING]
-> The S3 bucket must exist before running `terraform init` — if it doesn't, the backend configuration will fail.
+> ⚠️ **The S3 bucket must exist before running `terraform init`** — if it doesn't, the backend configuration will fail.
 
 Create the bucket (choose a unique name):
 
@@ -145,8 +142,7 @@ terraform {
 }
 ```
 
-> [!WARNING]
-> Never delete the S3 bucket or state file while infrastructure is running. Terraform will lose track of what it created, making it very difficult to manage or destroy resources.
+> ⚠️ **Never delete the S3 bucket or state file** while infrastructure is running. Terraform will lose track of what it created, making it very difficult to manage or destroy resources.
 
 ---
 
@@ -172,8 +168,7 @@ terraform destroy
 ```
 Tears down **all infrastructure** managed by Terraform in the current directory. Shows a list of everything that will be deleted and asks you to type `yes` to confirm.
 
-> [!WARNING]
-> This is irreversible. All AWS resources (EKS cluster, databases, networking, etc.) will be permanently deleted. Make sure you have backups of any important data before running this.
+> ⚠️ This is irreversible. All AWS resources (EKS cluster, databases, networking, etc.) will be permanently deleted. Make sure you have backups of any important data before running this.
 
 ---
 
