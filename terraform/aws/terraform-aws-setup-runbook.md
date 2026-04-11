@@ -17,9 +17,11 @@ sso_start_url = https://d-9967231e9d.awsapps.com/start
 sso_region = eu-central-1
 sso_account_id = YOUR_ACCOUNT_ID
 sso_role_name = SystemAdministrator
-region = us-west-1
+region = YOUR_REGION
 output = json
 ```
+The `sso_region` is ALWAYS `eu-central-1`
+You can choose your own [default region](https://docs.aws.amazon.com/global-infrastructure/latest/regions/aws-regions.html) to create resources in.
 
 > **Finding your Account ID:**
 > 1. Log in to AWS via your Okta dashboard
