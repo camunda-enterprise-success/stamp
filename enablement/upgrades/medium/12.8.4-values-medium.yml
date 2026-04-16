@@ -1,0 +1,153 @@
+global:
+  ingress:
+    enabled: false
+  elasticsearch:
+    enabled: true
+  identity:
+    auth:
+      enabled: true
+      type: "GENERIC"
+      issuer: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc
+      issuerBackendUrl: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc
+      tokenUrl: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc/protocol/openid-connect/token
+      jwksUrl: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc/protocol/openid-connect/certs
+      publicIssuerUrl: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc
+      identity:
+        clientId: oc-client
+        existingSecret: "gHSCIDc7liPeFxMlBuouPK310N6oPVQj"
+        audience: oc-client
+        initialClaimValue: "8e58d296-5b20-46a1-aabd-969828d46163" # client id from user 'jens-admin'
+        initialClaimName: "sub"
+        redirectUrl: "http://localhost:8084/identity"
+      operate:
+        clientId: oc-client
+        existingSecret: "gHSCIDc7liPeFxMlBuouPK310N6oPVQj"
+        audience: oc-client
+        redirectUrl: "http://localhost:8081/operate"
+      tasklist:
+        clientId: oc-client
+        audience: oc-client
+        existingSecret: "gHSCIDc7liPeFxMlBuouPK310N6oPVQj"
+        redirectUrl: "http://localhost:8082/tasklist"
+      optimize:
+        clientId: oc-client
+        audience: oc-client
+        existingSecret: "gHSCIDc7liPeFxMlBuouPK310N6oPVQj"
+        redirectUrl: "http://localhost:8083/optimize"
+      zeebe:
+        clientId: oc-client
+        audience: oc-client
+        existingSecret: "gHSCIDc7liPeFxMlBuouPK310N6oPVQj"
+
+
+zeebe:
+  enabled: true
+  debug: true
+  clusterSize: "3"
+  partitionCount: "3"
+  replicationFactor: "3"
+  pvcSize: 10Gi
+  affinity:
+    podAntiAffinity: null # to work on local kind cluster
+  resources:
+    requests:
+      cpu: 400m
+      memory: 1Gi
+    limits:
+      cpu: 400m
+      memory: 1Gi
+
+zeebeGateway:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 400m
+      memory: 450Mi
+    limits:
+      cpu: 400m
+      memory: 450Mi
+  ingress:
+    grpc:
+      enabled: false
+    rest:
+      enabled: false
+
+operate:
+  enabled: true
+  contextPath: "/operate"
+  logging:
+    level:
+      ROOT: INFO
+      io.camunda.operate: INFO
+  resources:
+    requests:
+      cpu: 400m
+      memory: 1Gi
+    limits:
+      cpu: 400m
+      memory: 1Gi
+
+tasklist:
+  enabled: true
+  contextPath: "/tasklist"
+  resources:
+    requests:
+      cpu: 400m
+      memory: 1Gi
+    limits:
+      cpu: 400m
+      memory: 1Gi
+
+
+optimize:
+  enabled: true
+  contextPath: "/optimize"
+  partitionCount: "3"
+  resources:
+    requests:
+      cpu: 400m
+      memory: 1Gi
+    limits:
+      cpu: 400m
+      memory: 1Gi
+
+identity:
+  enabled: true
+  contextPath: "/identity"
+  fullURL: "http://localhost:8084/identity"
+  resources:
+    requests:
+      cpu: 400m
+      memory: 400Mi
+    limits:
+      cpu: 400m
+      memory: 1Gi
+
+identityPostgresql:
+  enabled: true
+
+identityKeycloak:
+  enabled: false
+
+connectors:
+  enabled: false
+
+elasticsearch:
+  enabled: true
+  master:
+    replicaCount: 1
+    ## @param elasticsearch.master.masterOnly
+    masterOnly: false
+    heapSize: 1024m
+    persistence:
+      size: 64Gi
+    resources:
+      requests:
+        cpu: 1
+        memory: 2Gi
+      limits:
+        cpu: 2
+        memory: 2Gi
+
+prometheusServiceMonitor:
+  enabled: false
