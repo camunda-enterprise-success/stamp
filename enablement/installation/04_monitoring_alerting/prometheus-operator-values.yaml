@@ -1,0 +1,68 @@
+alertmanager:
+  enabled: false
+
+grafana:
+  image:
+    tag: 11.6.0
+  admin:
+    existingSecret: grafana-secret
+    userKey: admin-user
+    passwordKey: admin-password
+
+  smtp:
+    enabled: false
+
+  grafana.ini:
+    smtp:
+      enabled: false
+
+#  # Mount alert provisioning
+#  extraConfigmapMounts:
+#    - name: grafana-alerts
+#      mountPath: /etc/grafana/provisioning/alerting/
+#      configMap: grafana-alerts
+
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: default
+          orgId: 1
+          folder:
+          type: file
+          disableDeletion: true
+          editable: false
+          options:
+            path: /var/lib/grafana/dashboards/default
+  dashboards:
+    default:
+      zeebe:
+        urlold: https://raw.githubusercontent.com/zeebe-io/zeebe/develop/monitor/grafana/zeebe.json
+        url: https://raw.githubusercontent.com/camunda/camunda/main/monitor/grafana/zeebe.json
+
+  persistence:
+    enabled: true
+#    storageClassName: ssd
+  sidecar:
+    dashboards:
+      searchNamespace: ALL
+
+prometheus:
+  prometheusSpec:
+    retention: 90d
+    shards: 1
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+    storageSpec:
+      volumeClaimTemplate:
+        metadata:
+          name: prometheus
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 50Gi
+#          storageClassName: ssd
+

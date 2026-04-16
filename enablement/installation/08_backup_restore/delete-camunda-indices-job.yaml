@@ -1,0 +1,99 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: delete-camunda-indices
+  labels:
+    type: camunda-maintenance
+spec:
+  template:
+    spec:
+      containers:
+        - name: delete-indices
+          image: curlimages/curl
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              
+              echo "========================================="
+              echo "Camunda Elasticsearch Indices Deletion"
+              echo "========================================="
+              echo ""
+              echo "⚠️  WARNING: This will DELETE all indices with prefixes:"
+              echo "   - camunda-*"
+              echo "   - operate-*"
+              echo "   - tasklist-*"
+              echo ""
+              
+              # List indices to be deleted
+              echo "Fetching list of indices to delete..."
+              INDICES=$(curl -s "http://camunda-elasticsearch:9200/_cat/indices/camunda-*,operate-*,tasklist-*?h=index")
+              
+              if [ -z "$INDICES" ]; then
+                echo "No indices found matching the patterns."
+                exit 0
+              fi
+              
+              INDEX_COUNT=$(echo "$INDICES" | wc -l)
+              echo "Found $INDEX_COUNT indices to delete:"
+              echo ""
+              echo "$INDICES"
+              echo ""
+              
+              # Confirmation prompt (will auto-proceed in non-interactive mode)
+              echo "Proceeding with deletion in 5 seconds..."
+              sleep 5
+              
+              echo ""
+              echo "========================================="
+              echo "Deleting indices..."
+              echo "========================================="
+              echo ""
+              
+              # Delete indices by pattern
+              echo "Deleting camunda-* indices..."
+              CAMUNDA_INDICES=$(curl -s "http://camunda-elasticsearch:9200/_cat/indices/camunda-*?h=index")
+              for INDEX in $CAMUNDA_INDICES; do
+                echo "  Deleting $INDEX..."
+                curl -s -X DELETE "http://camunda-elasticsearch:9200/$INDEX"
+              done
+              echo "✓ Camunda indices deleted"
+              echo ""
+              
+              echo "Deleting operate-* indices..."
+              OPERATE_INDICES=$(curl -s "http://camunda-elasticsearch:9200/_cat/indices/operate-*?h=index")
+              for INDEX in $OPERATE_INDICES; do
+                echo "  Deleting $INDEX..."
+                curl -s -X DELETE "http://camunda-elasticsearch:9200/$INDEX"
+              done
+              echo "✓ Operate indices deleted"
+              echo ""
+              
+              echo "Deleting tasklist-* indices..."
+              TASKLIST_INDICES=$(curl -s "http://camunda-elasticsearch:9200/_cat/indices/tasklist-*?h=index")
+              for INDEX in $TASKLIST_INDICES; do
+                echo "  Deleting $INDEX..."
+                curl -s -X DELETE "http://camunda-elasticsearch:9200/$INDEX"
+              done
+              echo "✓ Tasklist indices deleted"
+              echo ""
+              
+              # Verify deletion
+              echo "========================================="
+              echo "Verifying deletion..."
+              echo "========================================="
+              REMAINING=$(curl -s "http://camunda-elasticsearch:9200/_cat/indices/camunda-*,operate-*,tasklist-*?h=index" | wc -l)
+              
+              if [ "$REMAINING" -eq 0 ]; then
+                echo "✓ SUCCESS: All indices deleted successfully!"
+              else
+                echo "⚠ WARNING: $REMAINING indices still remain"
+                curl -s "http://camunda-elasticsearch:9200/_cat/indices/camunda-*,operate-*,tasklist-*?h=index"
+              fi
+              
+              echo ""
+              echo "========================================="
+              echo "Deletion complete"
+              echo "========================================="
+      restartPolicy: Never
+  backoffLimit: 1

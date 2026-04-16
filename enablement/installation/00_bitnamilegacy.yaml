@@ -1,0 +1,22 @@
+elasticsearch:
+  image:
+    repository: bitnamilegacy/elasticsearch
+  copyTlsCerts:
+    image:
+      repository: bitnamilegacy/os-shell
+  metrics:
+    image:
+      repository: bitnamilegacy/elasticsearch-exporter
+  volumePermissions:
+    image:
+      repository: bitnamilegacy/os-shell
+  sysctlImage:
+    repository: bitnamilegacy/os-shell
+
+#identityPostgresql:
+#  image:
+#    repository: bitnamilegacy/postgresql
+#  volumePermissions:
+#    image:
+#      registry: docker.io
+#      repository: bitnamilegacy/os-shell

@@ -1,0 +1,40 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: register-snapshot-job
+  labels:
+    type: camunda-backup-restore
+spec:
+  template:
+    spec:
+      containers:
+        - name: es-snapshot
+          image: curlimages/curl
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              
+              echo "========================================="
+              echo "Registering Elasticsearch Snapshot Repositories"
+              echo "========================================="
+              
+              # Repository : Web Apps Indices (for backupHistory)
+              echo ""
+              echo "1. Registering repository: jens-88-backups-webapps"
+              echo "   Base path: web-apps-indices"
+              curl --fail -X PUT "http://camunda-elasticsearch:9200/_snapshot/jens-88-backups-webapps" \
+                -H 'Content-Type: application/json' \
+                -d '{"type":"s3","settings":{"bucket":"jens-88-backups","base_path":"web-apps-indices","region":"eu-central-1","endpoint":"s3.eu-central-1.amazonaws.com","protocol":"https","compress":true,"client":"default","path_style_access":true}}'
+              echo ""
+              echo "✓ Web Apps repository registered successfully"
+              
+              echo ""
+              echo "========================================="
+              echo "Repository registered successfully!"
+              echo ""
+              echo "S3 Structure:"
+              echo "  s3://jens-88-backups/web-apps-indices/   (Web Apps History snapshots)"
+              echo "  s3://jens-88-backups/oc-runtime/         (Zeebe runtime backups - managed by Camunda)"
+              echo "========================================="
+      restartPolicy: OnFailure

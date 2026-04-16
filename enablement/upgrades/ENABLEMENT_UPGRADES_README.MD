@@ -16,57 +16,46 @@ A: Understanding the upgrading procedure is a core skill, that needs to be under
 
 ---
 
-## All
-
-### Cleanup for fresh start
-(cd /stamp/local/kubernetes/kind-single-region)
-make cluster.delete
-
-### Create kind cluster
-make cluster.create
-
 ## Easy
 
 ### Deploy Camunda 8.6
 helm upgrade --install camunda camunda/camunda-platform -f ./easy/11.12.3-values-easy.yml --version 11.12.3 --create-namespace -n camunda
 
-### Check if zeebe is up and healthy
-./utils/check-zeebe-health.sh
-
-### Deploy test BPMN via curl
-./utils/deploy-bpmn.sh
-
-### Create some process instances
-./utils/create-process-instances.sh
+### Create some data
+```bash
+../utils/deploy-bpmn.sh
+../utils/create-process-instances.sh
+```
 
 ### Check in operate
 login via demo/demo
 
-
 ### upgrade to Camunda 8.7
-helm upgrade --install camunda camunda/camunda-platform -f ./easy/12.8.4-values-easy.yml --version 12.8.4 --create-namespace -n camunda
+helm upgrade --install camunda camunda/camunda-platform -f ./easy/solution/12.8.4-values-easy.yml --version 12.8.4 --create-namespace -n camunda
 
 ### upgrade to Camunda 8.8
-helm upgrade --install camunda camunda/camunda-platform -f ./easy/13.7.0-values-easy.yml --version 13.7.0 --create-namespace -n camunda
+helm upgrade --install camunda camunda/camunda-platform -f ./easy/solution/13.7.0-values-easy.yml --version 13.7.0 --create-namespace -n camunda
 
 
 
 
 ## Medium
 
-TODO: use own keycloak.
+TODO: use something other than the consulting keycloak :')
 
 ### Deploy Camunda 8.7
 helm upgrade --install camunda camunda/camunda-platform -f ./medium/12.8.4-values-medium.yml --version 12.8.4 --create-namespace -n camunda
 
-### Get token
-export AUTH_TOKEN=$(./utils/get-token.sh)
+### Create some data
+```bash
+../utils/deploy-bpmn.sh
+../utils/create-process-instances.sh
+```
 
-### Check if zeebe is up and healthy
-./utils/check-zeebe-health.sh
 
-### Deploy test BPMN via curl
-./utils/deploy-bpmn.sh
+### upgrade to Camunda 8.7
+...
 
-### Create some process instances
-./utils/create-process-instances.sh
+### upgrade to Camunda 8.8
+...
+
