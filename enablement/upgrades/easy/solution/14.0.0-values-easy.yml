@@ -1,0 +1,64 @@
+global:
+  ingress:
+    enabled: false
+  elasticsearch:
+    enabled: true
+  multitenancy:
+    enabled: false
+  identity:
+    auth:
+      enabled: false # in 8.8 this is for management identity only.
+
+orchestration:
+  enabled: true
+  clusterSize: "1"
+  partitionCount: "1"
+  replicationFactor: "1"
+  pvcSize: 10Gi
+  data:
+    secondaryStorage:
+      type: "elasticsearch"
+  security:
+    authentication:
+      method: basic
+  resources:
+    requests:
+      cpu: 300m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+
+elasticsearch:
+  enabled: true
+  master:
+    replicaCount: 1
+    persistence:
+      size: 15Gi
+
+
+# Explicitly disable all other components.
+connectors:
+  enabled: false
+
+console:
+  enabled: false
+
+tasklist:
+  enabled: false
+
+optimize:
+  enabled: false
+
+identity:
+  enabled: false
+
+identityKeycloak:
+  enabled: false
+
+webModeler:
+  enabled: false
+
+postgresql:
+  enabled: false

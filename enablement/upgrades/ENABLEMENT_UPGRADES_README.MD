@@ -36,7 +36,8 @@ helm upgrade --install camunda camunda/camunda-platform -f ./easy/solution/12.8.
 ### upgrade to Camunda 8.8
 helm upgrade --install camunda camunda/camunda-platform -f ./easy/solution/13.7.0-values-easy.yml --version 13.7.0 --create-namespace -n camunda
 
-
+### upgrade to Camunda 8.9
+helm upgrade --install camunda camunda/camunda-platform -f ./easy/solution/14.0.0-values-easy.yml --version 14.0.0 --create-namespace -n camunda
 
 
 ## Medium
