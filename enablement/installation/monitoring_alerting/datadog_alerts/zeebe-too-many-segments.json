@@ -1,0 +1,19 @@
+{
+  "name": "[Camunda Platform] ZeebeTooManySegments",
+  "type": "query alert",
+  "query": "avg(last_1h):max:atomix.segment.count{*} by {namespace,partition} > 100",
+  "message": "Atomix segment count > 100 for 1 hour. Log compaction may be stuck — Zeebe performance will degrade.\n\n@notification-channel",
+  "tags": [
+    "service:camunda",
+    "severity:critical",
+    "folder:camunda-platform"
+  ],
+  "options": {
+    "thresholds": {
+      "critical": 100
+    },
+    "notify_no_data": false,
+    "require_full_window": true,
+    "renotify_interval": 60
+  }
+}

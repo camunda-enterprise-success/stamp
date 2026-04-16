@@ -1,0 +1,14 @@
+{
+  "name": "[Camunda Platform] ZeebeBannedInstances",
+  "type": "composite",
+  "query": "__BANNED_BLACKLISTED_ID__ || __BANNED_BANNED_ID__",
+  "message": "Zeebe has banned/blacklisted process instances. Immediate investigation required.\n\n@notification-channel",
+  "tags": [
+    "service:camunda",
+    "severity:critical",
+    "folder:camunda-platform"
+  ],
+  "options": {
+    "renotify_interval": 60
+  }
+}

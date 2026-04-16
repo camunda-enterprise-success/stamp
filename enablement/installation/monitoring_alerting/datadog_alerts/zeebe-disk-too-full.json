@@ -1,0 +1,20 @@
+{
+  "name": "[Camunda Infrastructure] ZeebeDiskTooFull",
+  "type": "query alert",
+  "query": "avg(last_1h):(max:kubernetes.kubelet.volume.stats.used_bytes{persistentvolumeclaim:*zeebe*} by {namespace} / max:kubernetes.kubelet.volume.stats.capacity_bytes{persistentvolumeclaim:*zeebe*} by {namespace}) > 0.8",
+  "message": "Zeebe PVC disk usage > 80% for 1 hour. Risk of broker crash due to disk exhaustion.\n\n@notification-channel",
+  "tags": [
+    "service:camunda",
+    "severity:critical",
+    "folder:camunda-infrastructure"
+  ],
+  "options": {
+    "thresholds": {
+      "critical": 0.8,
+      "warning": 0.7
+    },
+    "notify_no_data": false,
+    "require_full_window": true,
+    "renotify_interval": 60
+  }
+}

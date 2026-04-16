@@ -1,0 +1,19 @@
+{
+  "name": "[Camunda Infrastructure] ElasticWrongReplicaCount",
+  "type": "query alert",
+  "query": "avg(last_1d):avg:elasticsearch.indices.settings.replicas{*} by {namespace,index} < 1",
+  "message": "One or more Elasticsearch indices have 0 replicas. Data loss risk on node failure.\n\nNote: the original alert only fired when data_nodes > 1 (to exclude intentional single-node clusters). If your environment includes single-node dev clusters, add a tag filter to scope this monitor to multi-node clusters only.\n\n@notification-channel",
+  "tags": [
+    "service:camunda",
+    "severity:critical",
+    "folder:camunda-infrastructure"
+  ],
+  "options": {
+    "thresholds": {
+      "critical": 1
+    },
+    "notify_no_data": false,
+    "require_full_window": true,
+    "renotify_interval": 60
+  }
+}

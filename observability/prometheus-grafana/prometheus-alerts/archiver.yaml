@@ -29,7 +29,6 @@ spec:
           annotations:
             summary: Archiver backlog is not decreasing.
             description: The backlog of process instances for partition `{{ $labels.partition }}` awaiting archival in namespace `{{ $labels.namespace }}` has not decreased over the last 2 hours. This may indicate the archiver is falling behind.
-            runbook_url: https://cautious-adventure-gg5z6wv.pages.github.io/camunda-runbooks/archiver-backlog-growing
           labels:
             severity: critical
             team: data-layer
