@@ -16,11 +16,11 @@ grafana:
     smtp:
       enabled: false
 
-#  # Mount alert provisioning
-#  extraConfigmapMounts:
-#    - name: grafana-alerts
-#      mountPath: /etc/grafana/provisioning/alerting/
-#      configMap: grafana-alerts
+  # Mount alert provisioning
+  extraConfigmapMounts:
+    - name: grafana-alerts
+      mountPath: /etc/grafana/provisioning/alerting/
+      configMap: grafana-alerts
 
   dashboardProviders:
     dashboardproviders.yaml:

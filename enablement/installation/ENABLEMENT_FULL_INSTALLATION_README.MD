@@ -12,6 +12,7 @@ s3://your-backup-bucket/
 
 ## 01 Install Prometheus/Grafana
 ```bash
+kubectl create configmap grafana-alerts --from-file=monitoring_alerting/camunda-alerts-grafana-managed.yaml -n default 
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo add stable https://charts.helm.sh/stable
 helm repo update prometheus-community stable
