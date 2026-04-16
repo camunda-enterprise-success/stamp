@@ -74,7 +74,6 @@ groups:
         for: 1m
         labels:
           severity: critical
-          team: zeebe
         isPaused: false
 
   # ---------------------------------------------------------------
@@ -136,7 +135,6 @@ groups:
         # for: omitted — original was 0m (fire immediately on first evaluation)
         labels:
           severity: critical
-          team: zeebe
         isPaused: false
 
       - uid: cc0zdeadpart01
@@ -190,7 +188,6 @@ groups:
           # NOTE: original severity was dynamic — "page" for Stable channel, "critical" otherwise.
           # Grafana managed alerts require static labels; defaulting to "critical".
           severity: critical
-          team: zeebe
         isPaused: false
 
       - uid: dd0zproclag001
@@ -244,7 +241,6 @@ groups:
         for: 1h
         labels:
           severity: critical
-          team: zeebe
         isPaused: false
 
       - uid: ee0zproclaglg1
@@ -299,7 +295,6 @@ groups:
         labels:
           # NOTE: original severity was dynamic — "page" for Stable channel, "critical" otherwise.
           severity: critical
-          team: zeebe
         isPaused: false
 
       - uid: ff0zloops0001a
@@ -358,7 +353,6 @@ groups:
         for: 5m
         labels:
           severity: critical
-          team: zeebe
         isPaused: false
 
       - uid: gg0zsegments01
@@ -410,7 +404,6 @@ groups:
         for: 1h
         labels:
           severity: critical
-          team: zeebe
         isPaused: false
 
   # ---------------------------------------------------------------
@@ -473,7 +466,6 @@ groups:
         labels:
           # NOTE: original severity was dynamic — "page" for Stable channel, "critical" otherwise.
           severity: critical
-          team: data-layer
         isPaused: false
 
   # ---------------------------------------------------------------
@@ -546,7 +538,6 @@ groups:
         for: 2h
         labels:
           severity: critical
-          team: data-layer
         isPaused: false
 
   # ---------------------------------------------------------------
@@ -606,7 +597,6 @@ groups:
         for: 20m
         labels:
           severity: critical
-          team: connectors
         isPaused: false
 
       - uid: nn0cqueueoflow
@@ -660,7 +650,6 @@ groups:
         for: 20m
         labels:
           severity: critical
-          team: connectors
         isPaused: false
 
       - uid: oo0clogserrors1
@@ -712,7 +701,6 @@ groups:
         for: 20m
         labels:
           severity: critical
-          team: connectors
         isPaused: false
 
   # ---------------------------------------------------------------
@@ -784,7 +772,6 @@ groups:
         for: 10m
         labels:
           severity: critical
-          team: data-layer
         isPaused: false
 
       - uid: ii0eilmstopped
@@ -842,7 +829,6 @@ groups:
         for: 24h
         labels:
           severity: warning
-          team: data-layer
         isPaused: false
 
       - uid: jj0eoomcirc001
@@ -896,7 +882,6 @@ groups:
         for: 30m
         labels:
           severity: warning
-          team: data-layer
         isPaused: false
 
   # ---------------------------------------------------------------
@@ -970,7 +955,6 @@ groups:
           severity: critical
           # NOTE: original team was dynamic based on index name prefix:
           # "data-layer" for optimize/operate/tasklist/camunda/zeebe, "controller" otherwise.
-          team: data-layer
         isPaused: false
 
   # ---------------------------------------------------------------
@@ -1034,7 +1018,6 @@ groups:
         for: 1h
         labels:
           severity: critical
-          team: zeebe
         isPaused: false
 
       - uid: rr0zcrashlloop
@@ -1086,5 +1069,4 @@ groups:
         for: 20m
         labels:
           severity: critical
-          team: zeebe
         isPaused: false
