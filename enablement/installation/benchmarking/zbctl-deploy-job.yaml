@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: zbctl-deploy
+spec:
+  template:
+    spec:
+      containers:
+      - name: zbctl-deploy
+        image: bitnami/minideb:latest
+        command:
+          - bash
+          - -c
+          - |
+            apt-get update && apt-get install -y curl jq
+            KEYCLOAK_URL="https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc/protocol/openid-connect/token"
+            CLIENT_ID="benchmark-client"
+            CLIENT_SECRET="benchmark-client"
+            ACCESS_TOKEN=$(curl -s --request POST "$KEYCLOAK_URL" \
+              --header 'Content-Type: application/x-www-form-urlencoded' \
+              --data-urlencode "grant_type=client_credentials" \
+              --data-urlencode "client_id=$CLIENT_ID" \
+              --data-urlencode "client_secret=$CLIENT_SECRET" \
+              --data-urlencode "audience=oc-client" | jq -r .access_token)
+            echo "ACCESS_TOKEN:" $ACCESS_TOKEN
+            
+            RESPONSE=$(curl -L -X POST 'http://camunda-zeebe-gateway:8080/v2/deployments' \
+              -H "Authorization: Bearer $ACCESS_TOKEN" \
+              -H 'Content-Type: multipart/form-data' \
+              -H 'Accept: application/json' \
+              -F 'resources=@/models/CamundaProcess.bpmn' \
+              -w "\nHTTP_CODE:%{http_code}" -v 2>&1)
+            echo "CURL RESPONSE: $RESPONSE"
+            
+            # Check if deployment was successful
+            HTTP_CODE=$(echo "$RESPONSE" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2)
+            echo "HTTP Status Code: $HTTP_CODE"
+            
+            if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
+              echo "✓ Deployment successful!"
+              exit 0
+            else
+              echo "✗ Deployment failed!"
+              exit 1
+            fi
+        volumeMounts:
+        - name: models
+          mountPath: /models/CamundaProcess.bpmn
+          subPath: CamundaProcess.bpmn
+          readOnly: true
+      volumes:
+      - name: models
+        configMap:
+          name: models
+      restartPolicy: Never

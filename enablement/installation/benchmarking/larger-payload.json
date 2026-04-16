@@ -1,0 +1,347 @@
+{
+  "transactionId": "TXN-2026-03-14-789456123",
+  "transactionType": "LOAN_APPLICATION",
+  "timestamp": "2026-03-14T12:23:04.648Z",
+  "channel": "ONLINE_BANKING",
+  "priority": "HIGH",
+  "customer": {
+    "customerId": "CUST-8976543210",
+    "firstName": "Maria",
+    "lastName": "Schmidt",
+    "dateOfBirth": "1985-06-15",
+    "nationality": "DE",
+    "email": "maria.schmidt@example.com",
+    "phoneNumber": "+49-30-12345678",
+    "mobileNumber": "+49-171-9876543",
+    "preferredLanguage": "de",
+    "customerSegment": "PREMIUM",
+    "customerSince": "2015-03-22",
+    "address": {
+      "street": "Friedrichstraße",
+      "houseNumber": "123",
+      "apartmentNumber": "4B",
+      "postalCode": "10117",
+      "city": "Berlin",
+      "state": "Berlin",
+      "country": "DE"
+    },
+    "employmentInfo": {
+      "employmentStatus": "EMPLOYED",
+      "employer": "Tech Solutions GmbH",
+      "occupation": "Software Engineer",
+      "employmentSince": "2018-09-01",
+      "monthlyIncome": 5500.00,
+      "currency": "EUR"
+    },
+    "identification": {
+      "idType": "PASSPORT",
+      "idNumber": "C01X0RT3Z",
+      "issuingCountry": "DE",
+      "issueDate": "2020-05-10",
+      "expiryDate": "2030-05-09"
+    }
+  },
+  "loan": {
+    "loanType": "MORTGAGE",
+    "loanPurpose": "PROPERTY_PURCHASE",
+    "requestedAmount": 350000.00,
+    "currency": "EUR",
+    "requestedTerm": 300,
+    "termUnit": "MONTHS",
+    "interestRateType": "FIXED",
+    "proposedInterestRate": 3.25,
+    "collateral": {
+      "collateralType": "REAL_ESTATE",
+      "propertyType": "APARTMENT",
+      "propertyAddress": {
+        "street": "Alexanderplatz",
+        "houseNumber": "5",
+        "postalCode": "10178",
+        "city": "Berlin",
+        "state": "Berlin",
+        "country": "DE"
+      },
+      "estimatedValue": 420000.00,
+      "purchasePrice": 410000.00,
+      "constructionYear": 2019,
+      "livingArea": 95,
+      "numberOfRooms": 3.5,
+      "energyEfficiencyClass": "B",
+      "cadastralReference": "BER-2026-ALX-00459"
+    },
+    "downPayment": 60000.00,
+    "loanToValue": 85.37
+  },
+  "creditCheck": {
+    "creditScore": 785,
+    "creditScoreProvider": "SCHUFA",
+    "creditScoreDate": "2026-03-13",
+    "creditRating": "GOOD",
+    "existingLoans": [
+      {
+        "loanId": "LOAN-456789",
+        "loanType": "AUTO_LOAN",
+        "lender": "Deutsche Bank AG",
+        "outstandingBalance": 12500.00,
+        "monthlyPayment": 350.00,
+        "remainingTerm": 36,
+        "interestRate": 4.5
+      },
+      {
+        "loanId": "LOAN-234567",
+        "loanType": "CREDIT_CARD",
+        "lender": "Sparkasse Berlin",
+        "outstandingBalance": 2300.00,
+        "monthlyPayment": 150.00,
+        "creditLimit": 5000.00,
+        "interestRate": 12.9
+      }
+    ],
+    "totalMonthlyDebtService": 500.00,
+    "debtToIncomeRatio": 9.09,
+    "bankruptcyHistory": false,
+    "latePaymentsLast12Months": 0,
+    "numberOfCreditInquiries": 3
+  },
+  "accounts": {
+    "checkingAccount": {
+      "accountNumber": "DE89370400440532013000",
+      "iban": "DE89370400440532013000",
+      "bic": "COBADEFFXXX",
+      "accountType": "CHECKING",
+      "currency": "EUR",
+      "balance": 15750.50,
+      "averageBalance3Months": 14200.00,
+      "overdraftLimit": 2000.00,
+      "accountOpenDate": "2015-03-22"
+    },
+    "savingsAccount": {
+      "accountNumber": "DE89370400440532013001",
+      "iban": "DE89370400440532013001",
+      "bic": "COBADEFFXXX",
+      "accountType": "SAVINGS",
+      "currency": "EUR",
+      "balance": 42000.00,
+      "interestRate": 1.5,
+      "accountOpenDate": "2016-07-10"
+    },
+    "investmentAccount": {
+      "accountNumber": "DE89370400440532013002",
+      "accountType": "INVESTMENT",
+      "currency": "EUR",
+      "marketValue": 28500.00,
+      "portfolioType": "BALANCED",
+      "accountOpenDate": "2019-02-15"
+    }
+  },
+  "documents": [
+    {
+      "documentId": "DOC-001-2026",
+      "documentType": "ID_CARD",
+      "fileName": "passport_scan.pdf",
+      "fileSize": 2048576,
+      "mimeType": "application/pdf",
+      "uploadDate": "2026-03-14T10:15:30Z",
+      "verified": true
+    },
+    {
+      "documentId": "DOC-002-2026",
+      "documentType": "INCOME_STATEMENT",
+      "fileName": "salary_statement_2025.pdf",
+      "fileSize": 1024768,
+      "mimeType": "application/pdf",
+      "uploadDate": "2026-03-14T10:18:45Z",
+      "verified": true
+    },
+    {
+      "documentId": "DOC-003-2026",
+      "documentType": "PROPERTY_VALUATION",
+      "fileName": "property_appraisal.pdf",
+      "fileSize": 5120000,
+      "mimeType": "application/pdf",
+      "uploadDate": "2026-03-14T10:22:10Z",
+      "verified": false
+    },
+    {
+      "documentId": "DOC-004-2026",
+      "documentType": "EMPLOYMENT_CONTRACT",
+      "fileName": "employment_contract.pdf",
+      "fileSize": 768432,
+      "mimeType": "application/pdf",
+      "uploadDate": "2026-03-14T10:25:33Z",
+      "verified": true
+    }
+  ],
+  "riskAssessment": {
+    "riskLevel": "MEDIUM",
+    "riskScore": 72.5,
+    "assessmentDate": "2026-03-14T11:30:00Z",
+    "riskFactors": [
+      {
+        "factor": "CREDIT_SCORE",
+        "rating": "POSITIVE",
+        "weight": 25,
+        "score": 85
+      },
+      {
+        "factor": "DEBT_TO_INCOME",
+        "rating": "POSITIVE",
+        "weight": 20,
+        "score": 90
+      },
+      {
+        "factor": "LOAN_TO_VALUE",
+        "rating": "NEUTRAL",
+        "weight": 20,
+        "score": 65
+      },
+      {
+        "factor": "EMPLOYMENT_STABILITY",
+        "rating": "POSITIVE",
+        "weight": 15,
+        "score": 80
+      },
+      {
+        "factor": "PAYMENT_HISTORY",
+        "rating": "POSITIVE",
+        "weight": 20,
+        "score": 95
+      }
+    ],
+    "recommendedAction": "APPROVE_WITH_CONDITIONS",
+    "conditions": [
+      "Property insurance required before disbursement",
+      "Life insurance with bank as beneficiary",
+      "Annual income verification for first 3 years"
+    ]
+  },
+  "workflow": {
+    "workflowId": "WF-LOAN-2026-03-789456",
+    "workflowStatus": "IN_PROGRESS",
+    "currentStep": "CREDIT_ASSESSMENT",
+    "assignedTo": "credit-assessment-team",
+    "assignedDate": "2026-03-14T11:45:00Z",
+    "slaDeadline": "2026-03-16T17:00:00Z",
+    "escalationRequired": false,
+    "completedSteps": [
+      {
+        "stepId": "INITIAL_VALIDATION",
+        "stepName": "Initial Document Validation",
+        "completedBy": "system-auto-validation",
+        "completedDate": "2026-03-14T10:30:00Z",
+        "status": "COMPLETED",
+        "result": "PASSED"
+      },
+      {
+        "stepId": "IDENTITY_VERIFICATION",
+        "stepName": "Customer Identity Verification",
+        "completedBy": "kyc-team-agent-42",
+        "completedDate": "2026-03-14T11:15:00Z",
+        "status": "COMPLETED",
+        "result": "PASSED"
+      },
+      {
+        "stepId": "FRAUD_CHECK",
+        "stepName": "Fraud Detection Check",
+        "completedBy": "fraud-detection-system",
+        "completedDate": "2026-03-14T11:20:00Z",
+        "status": "COMPLETED",
+        "result": "PASSED",
+        "fraudScore": 5.2
+      }
+    ],
+    "pendingSteps": [
+      {
+        "stepId": "CREDIT_ASSESSMENT",
+        "stepName": "Credit Risk Assessment",
+        "estimatedDuration": 240,
+        "assignedTo": "credit-assessment-team"
+      },
+      {
+        "stepId": "PROPERTY_VALUATION",
+        "stepName": "Property Valuation Review",
+        "estimatedDuration": 480,
+        "assignedTo": "property-valuation-team"
+      },
+      {
+        "stepId": "MANAGEMENT_APPROVAL",
+        "stepName": "Senior Management Approval",
+        "estimatedDuration": 180,
+        "assignedTo": "senior-loan-officer"
+      },
+      {
+        "stepId": "CONTRACT_GENERATION",
+        "stepName": "Loan Contract Generation",
+        "estimatedDuration": 60,
+        "assignedTo": "legal-contracts-system"
+      },
+      {
+        "stepId": "CUSTOMER_SIGNING",
+        "stepName": "Customer Contract Signing",
+        "estimatedDuration": 2880,
+        "assignedTo": "customer"
+      }
+    ]
+  },
+  "compliance": {
+    "amlCheckStatus": "CLEARED",
+    "amlCheckDate": "2026-03-14T10:45:00Z",
+    "sanctionsCheckStatus": "CLEARED",
+    "sanctionsCheckDate": "2026-03-14T10:45:00Z",
+    "pepStatus": false,
+    "gdprConsentGiven": true,
+    "gdprConsentDate": "2026-03-14T09:30:00Z",
+    "mifidClassification": "RETAIL_CLIENT",
+    "sourceOfFunds": "EMPLOYMENT_INCOME",
+    "taxResidency": ["DE"],
+    "fatcaStatus": "NON_US_PERSON",
+    "regulatoryReporting": {
+      "requiresBafinReporting": true,
+      "requiresEcbReporting": false,
+      "requiresEbaReporting": false
+    }
+  },
+  "notifications": [
+    {
+      "notificationId": "NOTIF-001",
+      "notificationType": "APPLICATION_RECEIVED",
+      "channel": "EMAIL",
+      "recipient": "maria.schmidt@example.com",
+      "sentDate": "2026-03-14T10:05:00Z",
+      "status": "DELIVERED"
+    },
+    {
+      "notificationId": "NOTIF-002",
+      "notificationType": "DOCUMENT_VERIFICATION_COMPLETE",
+      "channel": "SMS",
+      "recipient": "+49-171-9876543",
+      "sentDate": "2026-03-14T11:16:00Z",
+      "status": "DELIVERED"
+    },
+    {
+      "notificationId": "NOTIF-003",
+      "notificationType": "APPLICATION_IN_PROGRESS",
+      "channel": "PUSH_NOTIFICATION",
+      "recipient": "CUST-8976543210",
+      "sentDate": "2026-03-14T11:45:30Z",
+      "status": "DELIVERED"
+    }
+  ],
+  "insurance": {
+    "propertyInsuranceRequired": true,
+    "lifeInsuranceRequired": true,
+    "paymentProtectionInsurance": {
+      "offered": true,
+      "accepted": false
+    }
+  },
+  "additionalInfo": {
+    "applicationSource": "ONLINE_PORTAL",
+    "referralCode": null,
+    "promotionalCampaign": "SPRING_2026_LOW_RATE",
+    "relationshipManager": "RM-Berlin-042",
+    "branchCode": "BER-CENTRAL-001",
+    "internalNotes": "Customer has excellent payment history. Premium segment client since 2015.",
+    "specialConditions": null
+  }
+}
