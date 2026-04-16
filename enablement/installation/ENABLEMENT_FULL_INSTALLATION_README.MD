@@ -1,5 +1,8 @@
 # Prerequisites
 
+## (Local) Kubernetes Cluster
+Can be created e.g. via `make cluster.create` in local/kubernetes/kind-single-region
+
 ## S3 Buckets
 Set up the following bucket structure in your object storage:
 ```
@@ -7,6 +10,8 @@ s3://your-backup-bucket/
 ├── web-apps-indices/        ← Web Apps History snapshots (backupHistory)
 └── oc-runtime/              ← Zeebe runtime backups (backupRuntime)
 ```
+
+!!! Important: Updates on the Buckets have to be also applied in the subsequent files. Can initially be done via find/replace. In a second version, real placeholders should be used. 
 
 # Full Installation including Backup
 
