@@ -15,6 +15,8 @@ s3://your-backup-bucket/
 
 # Full Installation including Backup
 
+(start in "installation" directory)
+
 ## 01 Install Prometheus/Grafana
 ```bash
 kubectl create configmap grafana-alerts --from-file=monitoring_alerting/camunda-alerts-grafana-managed.yaml -n default 
