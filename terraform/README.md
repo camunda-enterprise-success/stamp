@@ -1,14 +1,14 @@
 # Camunda AWS & Azure Deployment Runbooks
 
-This repository contains runbooks for deploying Camunda 8 Self-Managed infrastructure using Terraform on AWS and Azure.
+This repository contains runbooks for TAMs deploying Camunda 8 Self-Managed infrastructure using Terraform on AWS and Azure via the [camunda-deployment-references](https://github.com/camunda/camunda-deployment-references) repository.
 
 > [!CAUTION]
 > Cloud resources are costly. Only create infrastructure when you need it and **delete it as soon as you are done.** Use `terraform destroy` to tear down all resources when finished.
 
 ## Cloud Provider Runbooks
 
-- [AWS CLI Authentication & Setup](./aws-sso-runbook.md)
-- [Azure CLI Authentication & Setup](./azure-cli-runbook.md)
+- [AWS CLI Authentication & Setup](./aws/README.md)
+- [Azure CLI Authentication & Setup](./!!!-azure/!!!-README.md)
 
 ---
 

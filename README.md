@@ -32,15 +32,23 @@ stamp/
 │   │   ├── azure-blob-backup-values.yaml # 🚧 
 │   │   └── azure-blob-backup-runbook.md  # 🚧 
 │   └── gcs/
-│       ├── gcs-backup-values.yaml       # 🚧
-│       └── gcs-backup-runbook.md        # 🚧
+│       ├── gcs-backup-values.yaml        # 🚧
+│       └── gcs-backup-runbook.md         # 🚧
 │
-└── observability/                        # Observability stack overlays
-    ├── prometheus-grafana/
-    │   ├── prometheus-grafana-values.yaml  # kube-prometheus-stack values
-    │   └── prometheus-grafana-runbook.md   # Setup and wiring guide
-    ├── !!!-dynatrace/                      # 🚧 Dynatrace integration
-    └── cloudwatch/                         # CloudWatch integration
+├── observability/                        # Observability stack overlays
+│   ├── prometheus-grafana/
+│   │   ├── prometheus-grafana-values.yaml  # kube-prometheus-stack values
+│   │   └── prometheus-grafana-runbook.md   # Setup and wiring guide
+│   ├── !!!-dynatrace/                      # 🚧 Dynatrace integration
+│   └── cloudwatch/                         # CloudWatch integration
+│
+└── terraform/                           # Terraform runbooks
+    ├── aws/
+    │   └── README.md                    # AWS specific terraform runbook
+    ├─ !!!-azure/
+    │   └── !!!-README.md                # 🚧 Azure specific terraform runbook
+    └── README.md                        # Generic Terraform instructions
+    
 ```
 
 > Directories prefixed with `!!!-` are reserved placeholders for future scenarios. They are intentionally empty.

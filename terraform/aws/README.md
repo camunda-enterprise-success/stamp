@@ -67,10 +67,10 @@ export AWS_SECRET_ACCESS_KEY=...
 export AWS_SESSION_TOKEN=...
 ```
 
-Also set your [region](https://docs.aws.amazon.com/global-infrastructure/latest/regions/aws-regions.html) (us-west-1 is an example, you can change it to a region near you):
+Also set your [region](https://docs.aws.amazon.com/global-infrastructure/latest/regions/aws-regions.html) (you can change it to a region near you):
 
 ```bash
-export AWS_REGION=us-west-1
+export AWS_REGION=YOUR_REGION
 ```
 
 ---
@@ -124,8 +124,8 @@ Create the bucket (choose a unique name):
 ```bash
 aws s3api create-bucket \
   --bucket your-terraform-state-bucket \
-  --region us-west-1 \
-  --create-bucket-configuration LocationConstraint=us-west-1
+  --region $AWS_REGION \
+  --create-bucket-configuration LocationConstraint=$AWS_REGION
 ```
 
 Then enable versioning so you can recover previous state files if something goes wrong:
@@ -143,7 +143,7 @@ terraform {
   backend "s3" {
     bucket = "your-terraform-state-bucket"
     key    = "terraform.tfstate"
-    region = "us-west-1"
+    region = "YOUR_REGION"
   }
 }
 ```
@@ -182,13 +182,10 @@ The safest approach is to make all your changes directly in `cluster.tf`. It is 
 module "eks_cluster" {
   source = "../../../../modules/eks-cluster"
   ...
-  availability_zones = ["us-west-1a", "us-west-1c"]
+  availability_zones = ["us-west-2a", "us-west-2c"]
   ...
 }
 ```
-
-> [!NOTE]
-> 4 x `m6i.xlarge` nodes plus 3 NAT gateways adds up quickly. If this is for testing, set `np_desired_node_count = 2` and `single_nat_gateway = true`.
 
 ---
 
@@ -224,19 +221,20 @@ SSO sessions expire after a few hours. When you see a `403` or `InvalidClientTok
 
 ```bash
 aws sso login
+unset AWS_CREDENTIAL_EXPIRATION
 aws configure export-credentials --format env
 # paste the exported lines
-export AWS_REGION=us-west-1
+export AWS_REGION=YOUR_REGION
 ```
 
 ---
 
 ## Troubleshooting
 
-| Error | Fix |
-|---|---|
+| Error | Fix                                                                                |
+|---|------------------------------------------------------------------------------------|
 | `profile could not be found` | Check `~/.aws/config` exists and has a `[default]` block. Run `unset AWS_PROFILE`. |
-| `NoCredentialProviders` | You haven't logged in yet. Run `aws sso login`. |
-| `InvalidClientTokenId 403` | Session expired. Re-run `aws sso login` and re-export credentials. |
-| `Missing region value` | Run `export AWS_REGION=us-west-1`. |
-| `sso_region / sso_start_url missing` | Add both fields directly to the `[default]` profile in `~/.aws/config`. |
+| `NoCredentialProviders` | You haven't logged in yet. Run `aws sso login`.                                    |
+| `InvalidClientTokenId 403` | Session expired. Re-run `aws sso login` and re-export credentials.                 |
+| `Missing region value` | Run `export AWS_REGION=YOUR_REGION`.                                               |
+| `sso_region / sso_start_url missing` | Add both fields directly to the `[default]` profile in `~/.aws/config`.            |
