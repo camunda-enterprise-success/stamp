@@ -10,11 +10,23 @@ grafana:
     passwordKey: admin-password
 
   smtp:
-    enabled: false
+    enabled: true
+    existingSecret: "grafana-secret"
+    passwordKey: "gmail-password"
+    userKey: "gmail-email"
 
   grafana.ini:
+    # smtp setup
     smtp:
-      enabled: false
+      enabled: true
+      host: smtp.gmail.com:587
+      from_address: jeliwi00@gmail.com
+
+  extraSecretMounts:
+    - name: grafana-secret
+      secretName: grafana-secret
+      mountPath: /etc/secrets/grafana-secret
+      readOnly: true
 
   # Mount alert provisioning
   extraConfigmapMounts:
