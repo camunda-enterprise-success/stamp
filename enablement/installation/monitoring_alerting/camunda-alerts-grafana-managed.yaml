@@ -21,29 +21,23 @@ groups:
             model:
               editorMode: code
               expr: |-
-                (
-                  1 -
-                  sum(
-                    rate(
-                      grpc_server_handled_total{
-                        code=~"DEADLINE_EXCEEDED|UNAVAILABLE",
-                        grpc_method!="CreateProcessInstanceWithResult"
-                      }[1m]
-                    )
-                  ) by (namespace)
-                  /
-                  sum(
-                    rate(
-                      grpc_server_handled_total{
-                        grpc_method!="CreateProcessInstanceWithResult"
-                      }[1m]
-                    )
-                  ) by (namespace)
-                )
-                * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_cluster_plan, label_cloud_camunda_io_generation)
-                (
-                  max(kube_namespace_labels{label_cloud_camunda_io_cluster_plan!="Development_Cluster"}) by (namespace, label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_cluster_plan, label_cloud_camunda_io_generation)
-                )
+                1 -
+                sum(
+                  rate(
+                    grpc_server_handled_total{
+                      code=~"DEADLINE_EXCEEDED|UNAVAILABLE",
+                      grpc_method!="CreateProcessInstanceWithResult"
+                    }[1m]
+                  )
+                ) by (namespace)
+                /
+                sum(
+                  rate(
+                    grpc_server_handled_total{
+                      grpc_method!="CreateProcessInstanceWithResult"
+                    }[1m]
+                  )
+                ) by (namespace)
               instant: true
               intervalMs: 1000
               legendFormat: __auto
@@ -103,15 +97,9 @@ groups:
             model:
               editorMode: code
               expr: |-
-                (
-                  increase(zeebe_blacklisted_instances_total[5m])
-                  or
-                  increase(zeebe_banned_instances_total[5m])
-                )
-                * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
-                (
-                  max(kube_namespace_labels) by (namespace, label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
-                )
+                increase(zeebe_blacklisted_instances_total[5m])
+                or
+                increase(zeebe_banned_instances_total[5m])
               instant: true
               intervalMs: 1000
               legendFormat: __auto
@@ -164,10 +152,6 @@ groups:
               editorMode: code
               expr: |-
                 min by(namespace) (zeebe_health)
-                * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_channel, label_cloud_camunda_io_generation)
-                (
-                  max(kube_namespace_labels) by (namespace, label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_channel, label_cloud_camunda_io_generation)
-                )
               instant: true
               intervalMs: 1000
               legendFormat: __auto
@@ -221,15 +205,9 @@ groups:
             model:
               editorMode: code
               expr: |-
-                (
-                  max by (namespace, partition) (zeebe_log_appender_last_appended_position)
-                  -
-                  max by (namespace, partition) (zeebe_stream_processor_last_processed_position)
-                )
-                * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
-                (
-                  max(kube_namespace_labels) by (namespace, label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
-                )
+                max by (namespace, partition) (zeebe_log_appender_last_appended_position)
+                -
+                max by (namespace, partition) (zeebe_stream_processor_last_processed_position)
               instant: true
               intervalMs: 1000
               legendFormat: __auto
@@ -281,15 +259,9 @@ groups:
             model:
               editorMode: code
               expr: |-
-                (
-                  max by (namespace, partition) (zeebe_log_appender_last_appended_position)
-                  -
-                  max by (namespace, partition) (zeebe_stream_processor_last_processed_position)
-                )
-                * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_channel, label_cloud_camunda_io_generation)
-                (
-                  max(kube_namespace_labels) by (namespace, label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_channel, label_cloud_camunda_io_generation)
-                )
+                max by (namespace, partition) (zeebe_log_appender_last_appended_position)
+                -
+                max by (namespace, partition) (zeebe_stream_processor_last_processed_position)
               instant: true
               intervalMs: 1000
               legendFormat: __auto
@@ -350,10 +322,6 @@ groups:
                     }[5m]
                   )
                 ) by (type, action, namespace)
-                * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
-                (
-                  max(kube_namespace_labels) by (namespace, label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
-                )
               instant: true
               intervalMs: 1000
               legendFormat: __auto
@@ -406,20 +374,6 @@ groups:
               editorMode: code
               expr: |-
                 max by (namespace, partition) (atomix_segment_count)
-                * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
-                (
-                  max(
-                    kube_namespace_labels{
-                      label_cloud_camunda_io_generation!~"^Camunda_8_8_0_alpha[1-6]$"
-                    }
-                  )
-                  by (
-                    namespace,
-                    label_cloud_camunda_io_sales_plan_type,
-                    label_cloud_camunda_io_cluster_plan_type,
-                    label_cloud_camunda_io_generation
-                  )
-                )
               instant: true
               intervalMs: 1000
               legendFormat: __auto
@@ -479,15 +433,9 @@ groups:
             model:
               editorMode: code
               expr: |-
-                (
-                  max by (namespace, partition) (zeebe_log_appender_last_committed_position)
-                  -
-                  max by (namespace, partition) (zeebe_exporter_last_exported_position)
-                )
-                * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_channel, label_cloud_camunda_io_generation)
-                (
-                  max(kube_namespace_labels) by (namespace, label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_channel, label_cloud_camunda_io_generation)
-                )
+                max by (namespace, partition) (zeebe_log_appender_last_committed_position)
+                -
+                max by (namespace, partition) (zeebe_exporter_last_exported_position)
               instant: true
               intervalMs: 1000
               legendFormat: __auto
@@ -552,21 +500,15 @@ groups:
               # The result is the backlog size when both hold; Grafana threshold fires on gt: 0.
               expr: |-
                 (
-                  (
-                    delta(
-                      (
-                        sum by (namespace, partition) (zeebe_camunda_exporter_process_instances_awaiting_archival)
-                      )[10m:1m]
-                    ) >= 0
-                  )
-                  and
-                  (
-                    sum by (namespace, partition) (zeebe_camunda_exporter_process_instances_awaiting_archival) > 0
-                  )
+                  delta(
+                    (
+                      sum by (namespace, partition) (zeebe_camunda_exporter_process_instances_awaiting_archival)
+                    )[10m:1m]
+                  ) >= 0
                 )
-                * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_channel, label_cloud_camunda_io_generation)
+                and
                 (
-                  max(kube_namespace_labels) by (namespace, label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_channel, label_cloud_camunda_io_generation)
+                  sum by (namespace, partition) (zeebe_camunda_exporter_process_instances_awaiting_archival) > 0
                 )
               instant: true
               intervalMs: 1000
@@ -628,10 +570,6 @@ groups:
               editorMode: code
               expr: |-
                 rate(kube_pod_container_status_restarts_total{job="kube-state-metrics", pod=~"connectors-deployment.*"}[10m]) * 60 * 5
-                * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type)
-                (
-                  max(kube_namespace_labels) by (namespace, label_cloud_camunda_io_sales_plan_type)
-                )
               instant: true
               intervalMs: 1000
               legendFormat: __auto
@@ -686,8 +624,6 @@ groups:
               # since Grafana evaluators do not have a gte type.
               expr: |-
                 max_over_time(executor_queued_tasks{name=~"zeebe_client_thread_pool|camundaClientExecutor"}[5m])
-                * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type)
-                (max(kube_namespace_labels) by (namespace, label_cloud_camunda_io_sales_plan_type))
               instant: true
               intervalMs: 1000
               legendFormat: __auto
@@ -740,8 +676,6 @@ groups:
               editorMode: code
               expr: |-
                 rate(logback_events_total{job="connectors-service", level="error", logger!~"io.camunda.connector.runtime.core.outbound.ConnectorJobHandler"}[5m]) * 60
-                * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type)
-                (max(kube_namespace_labels) by (namespace, label_cloud_camunda_io_sales_plan_type))
               instant: true
               intervalMs: 1000
               legendFormat: __auto
@@ -1064,20 +998,6 @@ groups:
                   /
                   kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~".*zeebe.*"}
                 )
-                * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
-                (
-                  max(
-                    kube_namespace_labels{
-                      label_cloud_camunda_io_generation!~"^Camunda_8_8_0_alpha[1-6]$"
-                    }
-                  )
-                  by (
-                    namespace,
-                    label_cloud_camunda_io_sales_plan_type,
-                    label_cloud_camunda_io_cluster_plan_type,
-                    label_cloud_camunda_io_generation
-                  )
-                )
               instant: true
               intervalMs: 1000
               legendFormat: __auto
@@ -1130,10 +1050,6 @@ groups:
               editorMode: code
               expr: |-
                 rate(kube_pod_container_status_restarts_total{job="kube-state-metrics", pod=~".*zeebe.*"}[10m]) * 60 * 5
-                * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
-                (
-                  max(kube_namespace_labels) by (namespace, label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
-                )
               instant: true
               intervalMs: 1000
               legendFormat: __auto
