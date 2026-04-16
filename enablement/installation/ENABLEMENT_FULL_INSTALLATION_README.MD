@@ -8,28 +8,27 @@ s3://your-backup-bucket/
 └── oc-runtime/              ← Zeebe runtime backups (backupRuntime)
 ```
 
-# Backup
+# Full Installation including Backup
 
 ## 01 Install Prometheus/Grafana
 ```bash
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo add stable https://charts.helm.sh/stable
 helm repo update prometheus-community stable
-kubectl apply -f ./04_monitoring_alerting/grafana-secret.yaml.secret -n default
+kubectl apply -f ./monitoring_alerting/grafana-secret.yaml.secret -n default
 helm install metrics prometheus-community/kube-prometheus-stack \
   --wait --atomic \
-  -f ./04_monitoring_alerting/prometheus-operator-values.yaml \
+  -f ./monitoring_alerting/prometheus-operator-values.yaml \
   --set prometheusOperator.tlsProxy.enabled=false \
   --namespace default
 ```
 
 ### 02 Prepare Secrets
 ```bash
-cd 03_permissions && ./create-secrets.sh && cd ..
-```
-
-```bash
-cd 08_backup_restore && ./create-secrets.sh && cd ..
+k create ns camunda
+kubens camunda &&
+cd permissions && ./create-secrets.sh && cd .. &&
+cd backup_restore && ./create-secrets.sh && cd ..
 ```
 
 ## 03 Install Camunda
@@ -40,10 +39,10 @@ camunda camunda-platform \
 --repo https://helm.camunda.io \
 --version 13.5.0 \
 --namespace camunda \
--f ./01_minimal_setup.yaml \
--f ./03_with_permissions.yaml \
--f ./04_with_monitoring_alerting.yaml \
--f ./08_values_with_backup_restore.yml
+-f ./minimal_setup.yaml \
+-f ./with_permissions.yaml \
+-f ./with_monitoring_alerting.yaml \
+-f ./values_with_backup_restore.yml
 ```
 
 ## 04 Create some data
@@ -55,7 +54,7 @@ export AUTH_TOKEN=$(../utils/get-token.sh)
 
 ## 05 Register Snapshot Repositories
 ```bash
-k apply -f ./08_backup_restore/register-snapshot-job.yaml
+k apply -f ./backup_restore/register-snapshot-job.yaml
 ```
 
 ## 06 Create Backup ConfigMap
@@ -66,7 +65,7 @@ kubectl create configmap camunda-backup-config -n camunda --from-literal=BACKUP_
 
 ## 07 Execute Backup
 ```bash
-k apply -f ./08_backup_restore/take-backup-job.yaml
+k apply -f ./backup_restore/take-backup-job.yaml
 ```
 
 
@@ -82,10 +81,9 @@ k delete ns camunda
 k create ns camunda
 kubens camunda
 kubectl create configmap camunda-backup-config -n camunda --from-literal=BACKUP_ID=1
-sleep 5:pod:
-cd 03_permissions && ./create-secrets.sh && cd ..
 sleep 5
-cd 08_backup_restore && ./create-secrets.sh && cd ..
+cd permissions && ./create-secrets.sh && cd .. &&
+cd backup_restore && ./create-secrets.sh && cd ..
 ```
 
 ```bash
@@ -95,15 +93,15 @@ helm upgrade --install \
   --repo https://helm.camunda.io \
   --version 13.5.0 \
   --namespace camunda \
-  -f ./01_minimal_setup.yaml \
-  -f ./03_with_permissions.yaml \
-  -f ./04_with_monitoring_alerting.yaml \
-  -f ./08_values_with_backup_restore.yml
+  -f ./minimal_setup.yaml \
+  -f ./with_permissions.yaml \
+  -f ./with_monitoring_alerting.yaml \
+  -f ./values_with_backup_restore.yml
 ```
 
 ## 03 Re-register Repositories
 ```bash
-k apply -f ./08_backup_restore/register-snapshot-job.yaml
+k apply -f ./backup_restore/register-snapshot-job.yaml
 ```
 
 ## 04 Scale Down Components
@@ -113,13 +111,13 @@ k scale statefulset camunda-zeebe --replicas=0
 
 ## 05 Delete Indices
 ```bash
-k apply -f ./08_backup_restore/delete-camunda-indices-job.yaml
+k apply -f ./backup_restore/delete-camunda-indices-job.yaml
 ```
 
 ## 06 Restore Snapshots
 Uses backup ID from ConfigMap:
 ```bash
-k apply -f ./08_backup_restore/es-snadpshot-restore-job.yaml
+k apply -f ./backup_restore/es-snapshot-restore-job.yaml
 ```
 
 ## 07 Restore Zeebe
@@ -134,7 +132,7 @@ helm upgrade --install \
   --repo https://helm.camunda.io \
   --version 13.5.0 \
   --namespace camunda \
-  -f ./08_backup_restore/08_values_to_restore_oc.yml
+  -f ./backup_restore/values_to_restore_oc.yml
 ```
 
 #### Return to Normal Operation
@@ -145,8 +143,8 @@ helm upgrade --install \
   --repo https://helm.camunda.io \
   --version 13.5.0 \
   --namespace camunda \
-  -f ./01_minimal_setup.yaml \
-  -f ./03_with_permissions.yaml \
-  -f ./04_with_monitoring_alerting.yaml \
-  -f ./08_values_with_backup_restore.yml
+  -f ./minimal_setup.yaml \
+  -f ./with_permissions.yaml \
+  -f ./with_monitoring_alerting.yaml \
+  -f ./values_with_backup_restore.yml
 ```
