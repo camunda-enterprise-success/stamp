@@ -1,0 +1,20 @@
+{
+  "name": "[Camunda Platform] ZeebeBannedInstances — blacklisted_instances_total",
+  "type": "query alert",
+  "query": "sum(last_5m):sum:zeebe.blacklisted.instances.total{*} by {namespace}.as_count() > 0",
+  "message": "Component monitor for ZeebeBannedInstances composite — do not action this directly.\nSee: [Camunda Platform] ZeebeBannedInstances",
+  "tags": [
+    "service:camunda",
+    "severity:critical",
+    "folder:camunda-platform",
+    "composite-component:true"
+  ],
+  "options": {
+    "thresholds": {
+      "critical": 0
+    },
+    "notify_no_data": false,
+    "require_full_window": false,
+    "renotify_interval": 0
+  }
+}

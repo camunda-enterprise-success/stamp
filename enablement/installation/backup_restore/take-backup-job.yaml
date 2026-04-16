@@ -1,0 +1,121 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: camunda-backup-combined
+  labels:
+    type: camunda-backup-restore
+spec:
+  template:
+    spec:
+      containers:
+        - name: take-combined-backup
+          image: alpine/curl:latest
+          command: ["/bin/sh", "-c"]
+          envFrom:
+            - configMapRef:
+                name: camunda-backup-config
+          args:
+            - |
+              set -e
+              ORCHESTRATION_CLUSTER_MANAGEMENT_API="http://camunda-zeebe-gateway:9600/"
+              ELASTIC_SNAPSHOT_REPO_WEBAPPS="jens-88-backups-webapps"
+              ELASTIC_SNAPSHOT_REPO_OC="jens-88-backups-zeebe"
+              
+              echo "==========================================="
+              echo "Taking combined backup with ID: $BACKUP_ID"
+              echo "==========================================="
+              
+              # Pause exporting before backup
+              echo ""
+              echo "Pausing export with soft=true..."
+              PAUSE_RESPONSE=$(curl -s -X POST "$ORCHESTRATION_CLUSTER_MANAGEMENT_API/actuator/exporting/pause?soft=true")
+              echo "Export pause response: $PAUSE_RESPONSE"
+              
+              # Function to wait for backup completion
+              wait_for_backup() {
+                local ENDPOINT=$1
+                local BACKUP_ID=$2
+                local TYPE=$3
+                
+                echo ""
+                echo "[$TYPE] Waiting for backup to complete..."
+                for i in $(seq 1 120); do
+                  RESPONSE=$(curl -s "http://camunda-zeebe-gateway:9600/actuator/$ENDPOINT")
+                  
+                  if echo "$RESPONSE" | grep -q "\"backupId\":$BACKUP_ID"; then
+                    # Extract top-level state only (not nested details state)
+                    # Match "state" that comes immediately after backupId, before "details"
+                    STATUS=$(echo "$RESPONSE" | grep -o "\"backupId\":$BACKUP_ID[^}]*\"state\":\"[^\"]*\"" | grep -o '"state":"[^"]*"' | head -1 | cut -d'"' -f4)
+                    echo "[$TYPE] Backup status: $STATUS"
+                    
+                    if [ "$STATUS" = "COMPLETED" ]; then
+                      echo "[$TYPE] Backup $BACKUP_ID completed successfully!"
+                      echo "$RESPONSE" | sed 's/},{/}\n{/g' | grep "\"backupId\":$BACKUP_ID"
+                      return 0
+                    elif [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "INCOMPLETE" ]; then
+                      echo "[$TYPE] Backup $BACKUP_ID failed with status: $STATUS"
+                      echo "$RESPONSE" | sed 's/},{/}\n{/g' | grep "\"backupId\":$BACKUP_ID"
+                      return 1
+                    fi
+                  else
+                    echo "[$TYPE] Backup still in progress..."
+                  fi
+                  
+                  sleep 10
+                done
+                
+                echo "[$TYPE] Backup did not complete within 20 minutes"
+                return 1
+              }
+              
+              # ===================================
+              # STEP 1: Backup History
+              # ===================================
+              echo ""
+              echo "Step 1: Taking HISTORY backup..."
+              HISTORY_RESPONSE=$(curl --fail -X POST "http://camunda-zeebe-gateway:9600/actuator/backupHistory" \
+                -H 'Content-Type: application/json' \
+                -d "{\"backupId\": $BACKUP_ID}")
+              
+              echo "History backup initiated: $HISTORY_RESPONSE"
+              
+              if ! wait_for_backup "backupHistory" "$BACKUP_ID" "HISTORY"; then
+                echo "FAILED: History backup failed"
+                exit 1
+              fi
+            
+              
+              # ===================================
+              # STEP 2: Backup Runtime
+              # ===================================
+              echo ""
+              echo "Step 3: Taking RUNTIME backup..."
+              RUNTIME_RESPONSE=$(curl --fail -X POST "http://camunda-zeebe-gateway:9600/actuator/backupRuntime" \
+                -H 'Content-Type: application/json' \
+                -d "{\"backupId\": $BACKUP_ID}")
+              
+              echo "Runtime backup initiated: $RUNTIME_RESPONSE"
+              
+              if ! wait_for_backup "backupRuntime" "$BACKUP_ID" "RUNTIME"; then
+                echo "FAILED: Runtime backup failed"
+                exit 1
+              fi
+              
+              # ===================================
+              # SUCCESS
+              # ===================================
+              echo ""
+              echo "==========================================="
+              echo "SUCCESS: All backups completed!"
+              echo "Backup ID: $BACKUP_ID"
+              echo " - History backup: COMPLETED (Web Apps Indices)"
+              echo " - Runtime backup: COMPLETED"
+              echo "==========================================="
+              
+              # Resume exporting after backup
+              echo ""
+              echo "Resuming export..."
+              RESUME_RESPONSE=$(curl -s -X POST "$ORCHESTRATION_CLUSTER_MANAGEMENT_API/actuator/exporting/resume")
+              echo "Export resume response: $RESUME_RESPONSE"
+      restartPolicy: Never
+  backoffLimit: 1

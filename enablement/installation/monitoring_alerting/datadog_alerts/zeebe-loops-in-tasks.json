@@ -1,0 +1,19 @@
+{
+  "name": "[Camunda Platform] ZeebeLoopsInTasks",
+  "type": "query alert",
+  "query": "avg(last_5m):max:zeebe.element.instance.events.total{action:completed,type:(TASK OR MANUAL_TASK)} by {type,action,namespace}.as_rate() > 10",
+  "message": "Zeebe task completion rate > 10/s — possible infinite loop in a service or manual task.\n\n@notification-channel",
+  "tags": [
+    "service:camunda",
+    "severity:critical",
+    "folder:camunda-platform"
+  ],
+  "options": {
+    "thresholds": {
+      "critical": 10
+    },
+    "notify_no_data": false,
+    "require_full_window": true,
+    "renotify_interval": 60
+  }
+}

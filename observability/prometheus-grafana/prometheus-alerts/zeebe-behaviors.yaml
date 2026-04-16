@@ -1,0 +1,207 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: zeebe-behaviors
+spec:
+  groups:
+    - name: zeebe-behaviors
+      rules:
+        - alert: ZeebeBannedInstances
+          annotations:
+            summary: >-
+              Zeebe has banned a process instance, due to a processing error.
+            description: >-
+              Zeebe pod {{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }})
+              has banned a new process instance due to a processing error.
+            dashboard_url: "d/zeebe-dashboard/zeebe?orgId=1&var-namespace={{ $labels.namespace }}"
+            runbook_url: https://github.com/camunda/runbook/blob/main/zeebe/troubleshooting-guide.md
+          expr: |-
+            (
+              increase(zeebe_blacklisted_instances_total[5m])
+              or
+              increase(zeebe_banned_instances_total[5m])
+            )
+            * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
+            (
+              max(kube_namespace_labels) by (namespace, label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
+            )
+            > 0
+          for: 0m
+          labels:
+            severity: critical
+            team: zeebe
+
+        - alert: ZeebeDeadPartition
+          annotations:
+            summary: >-
+              Zeebe cluster has at least one DEAD partition for more than 5 minutes.
+            description: >-
+              {{ reReplaceAll "-zeebe$" "" .Labels.namespace }} has at least one DEAD partition
+          expr: |-
+            min by(namespace) (zeebe_health)
+            * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_channel, label_cloud_camunda_io_generation)
+            (
+              max(kube_namespace_labels) by (namespace, label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_channel, label_cloud_camunda_io_generation)
+            )
+            < 0
+          for: 5m
+          labels:
+            severity: |-
+              {{- if eq "Stable" $labels.label_cloud_camunda_io_channel -}}
+                page
+              {{- else -}}
+                critical
+              {{- end -}}
+            team: zeebe
+
+
+        - alert: ZeebeProcessingLag
+          annotations:
+            summary: >-
+              Zeebe processing is lagging behind.
+            description: >-
+              {{ reReplaceAll "-zeebe$" "" .Labels.namespace }} has a backlog of records to process from partition {{ .Labels.partition }}.
+          expr: |-
+            (
+              max by (namespace, partition) (zeebe_log_appender_last_appended_position)
+              -
+              max by (namespace, partition) (zeebe_stream_processor_last_processed_position)
+            )
+            * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
+            (
+              max(kube_namespace_labels) by (namespace, label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
+            )
+            > 1000
+          for: 1h
+          labels:
+            severity: critical
+            team: zeebe
+
+        - alert: ZeebeProcessingLagLarge
+          annotations:
+            summary: >-
+              Zeebe processing is lagging behind by a large amount of records.
+            description: >-
+              {{ reReplaceAll "-zeebe$" "" .Labels.namespace }} has a very large backlog of records to process from partition {{ .Labels.partition }}.
+          expr: |-
+            (
+              max by (namespace, partition) (zeebe_log_appender_last_appended_position)
+              -
+              max by (namespace, partition) (zeebe_stream_processor_last_processed_position)
+            )
+            * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_channel, label_cloud_camunda_io_generation)
+            (
+              max(kube_namespace_labels) by (namespace, label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_channel, label_cloud_camunda_io_generation)
+            )
+            > 100000
+          for: 1h
+          labels:
+            severity: |-
+              {{- if eq "Stable" $labels.label_cloud_camunda_io_channel -}}
+                page
+              {{- else -}}
+                critical
+              {{- end -}}
+            team: zeebe
+
+        - alert: ZeebeLoopsInTasks
+          annotations:
+            summary: >-
+              Zeebe is running a straight-through task loop
+            description: >-
+              Manual and undefined Tasks can be processed immediately by Zeebe. When modeling a
+              loop in a process model Zeebe will run into a endless loop and produce endless
+              data, which will cause outages at some point. The Zeebe pod {{ $labels.namespace }}/{{ $labels.pod }}
+              runs {{ printf "%.2f" $value }} tasks per second.
+            dashboard_url: "d/zeebe-dashboard/zeebe?orgId=1&var-namespace={{ $labels.namespace }}"
+            runbook_url: https://github.com/camunda/runbook/blob/main/zeebe/zeebe-investigate-data.md#cancel-all-existing-instances
+          expr: |-
+            max(
+              rate(
+                zeebe_element_instance_events_total{
+                  action="completed",
+                  type=~"TASK|MANUAL_TASK"
+                }[5m]
+              )
+            ) by (type, action, namespace)
+            * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
+            (
+              max(kube_namespace_labels) by (namespace, label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
+            )
+            > 10
+          for: 5m
+          labels:
+            severity: critical
+            team: zeebe
+
+        - alert: ZeebeTooManySegments
+          annotations:
+            summary: >-
+              Zeebe has accumulated too many segments.
+            description: >-
+              {{ reReplaceAll "-zeebe$" "" .Labels.namespace }} has has too many log segments for partition {{ .Labels.partition }}.
+              This may cause performance and availability issues and is a sign of an unhealthy cluster.
+          expr: |-
+            max by (namespace, partition) (atomix_segment_count)
+            * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
+            (
+              max(
+                kube_namespace_labels{
+                  label_cloud_camunda_io_generation!~"^Camunda_8_8_0_alpha[1-6]$"
+                }
+              )
+              by (
+                namespace,
+                label_cloud_camunda_io_sales_plan_type,
+                label_cloud_camunda_io_cluster_plan_type,
+                label_cloud_camunda_io_generation
+              )
+            )
+            > 100
+          for: 1h
+          labels:
+            severity: critical
+            team: zeebe
+
+
+    - name: zeebe-slos
+      rules: []
+        # Disabled: was too sensitive, noisy, flaky - triggered always on node preemption (where two pods have been restarted)
+        #- alert: ZeebeSLORequestFailureRate
+          #annotations:
+            #summary: >-
+              #Zeebe should be available and have 99 percent availability (SLA), meaning less then 1 percent failure rate.
+            #description: >-
+              #Zeebe's availability (SLA) is defined as 99 percent of running time Zeebe should be available, in consequence
+              #we define one of our SLO as only 0.5 percent of requests should at max fail at any time.
+              #The Zeebe cluster {{ $labels.namespace }} is currently hurting its SLO.
+            #dashboard_url: 'd/zeebe-dashboard/zeebe?orgId=1&var-namespace={{ $labels.namespace }}'
+          #expr: |-
+            #(
+              #1 -
+              #sum(
+                #rate(
+                  #grpc_server_handled_total{
+                    #code=~"DEADLINE_EXCEEDED|UNAVAILABLE",
+                    #grpc_method!="CreateProcessInstanceWithResult"
+                  #}[1m]
+                #)
+              #) by (namespace)
+              #/
+              #sum(
+                #rate(
+                  #grpc_server_handled_total{
+                    #grpc_method!="CreateProcessInstanceWithResult"
+                  #}[1m]
+                #)
+              #) by (namespace)
+            #)
+            #* on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_cluster_plan)
+            #(
+              #max(kube_namespace_labels{label_cloud_camunda_io_cluster_plan!="Development_Cluster"}) by (namespace, label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_cluster_plan)
+            #)
+            #< 0.995
+          #for: 1m
+          #labels:
+            #severity: critical
+            #team: zeebe

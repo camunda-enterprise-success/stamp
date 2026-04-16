@@ -1,0 +1,129 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: elasticsearch
+spec:
+  groups:
+    - name: elasticsearch
+      rules:
+        - record: elasticsearch:shards_usage:ratio
+          # Compute the ratio of used shards compared to the total shards configured in the cluster.
+          expr: |-
+            avg(elasticsearch_cluster_health_active_shards) by (namespace)
+            /
+            (
+              avg(elasticsearch_cluster_health_number_of_data_nodes) by (namespace)
+              *
+              avg(elasticsearch_clustersettings_stats_max_shards_per_node) by (namespace)
+            )
+
+        - alert: ElasticHighNumberOfShards
+          # We are running a single Elasticsearch exporter per-cluser: when it
+          # restarts, the ratio "disappears" for a short time.
+          # To smooth at the absence of metrics, we average the values over a
+          # 10 minutes period: this delays a bit the detection (since we take
+          # up to 10 minutes of metrics in the past to detect the current
+          # condition), but for this alert it's not so much of a problem (it
+          # doesn't change a lot in a short period of time).
+          expr: |-
+            avg_over_time(
+              elasticsearch:shards_usage:ratio[10m]
+            )
+            > 0.9
+          for: 10m
+          labels:
+            severity: critical
+            team: data-layer
+          annotations:
+            summary: Elasticsearch instances are close to the shard limit.
+            description: |-
+              Elasticsearch in namespace `{{ $labels.namespace }}` uses {{ $value | humanizePercentage }} of its total shards.
+            dashboard_url: "d/elasticsearch/elasticsearch?var-namespace={{ $labels.namespace }}"
+            runbook_url: https://github.com/camunda/runbook/blob/main/elasticsearch/max-shards-reached.md
+
+        - alert: ElasticIlmStopped
+          # If ILM is stopped, the cluster is not able to manage the index lifecycle and
+          # - max shard count can be reached or
+          # - the cluster can run out of disk space.
+          expr: |-
+            avg(
+              avg_over_time(elasticsearch_ilm_status{operation_mode="STOPPED"}[10m]) == 1
+            ) by (namespace)
+            and on(namespace)
+            elasticsearch_clusterinfo_version_info{version!~"7.*"}
+          for: 1d
+          labels:
+            severity: warning
+            team: data-layer
+          annotations:
+            summary: ILM is stopped on Elasticsearch instances for more than 1 day.
+            description: |-
+              Elasticsearch ILM in namespace `{{ $labels.namespace }}` is stopped for more than 1 day. This can lead to
+              reaching the maximum shard count or the cluster can run out of disk space.
+              Please investigate and start ILM.
+
+        - alert: ElasticOOMCircuitBreaker
+          # Elasticsearch breakers prevent requests from causing an OutOfMemoryError
+          # - max shard count can be reached or
+          # - the cluster can run out of disk space.
+          expr: |-
+            sum(
+              rate(elasticsearch_breakers_tripped[10m])
+            ) by (namespace) > 0.5
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: Applications queries rejected by Elasticsearch circuit breaker.
+            description: |-
+              Elasticsearch ciruit breaker, an OutOfMemory prevention mechanism, is dropping queries.
+              Applications in namespace `{{ $labels.namespace }}` might not be functioning correctly.
+              For instance : generation updates not completing, inconsistent data, importer lagging behind.
+
+              This is an early alert mechanism. Other issues on the cluster may show up hours or days laters.
+              If it triggers, PLEASE INVESTIGATES.
+            runbook_url: https://www.elastic.co/guide/en/elasticsearch/reference/current/circuit-breaker-errors.html
+            dashboard_url: "d/elasticsearch/elasticsearch?var-namespace={{ $labels.namespace }}"
+            aws_log_query_string: |-
+              fields @timestamp, @message, @logStream, @log
+              | filter kubernetes.namespace_name="{{ $labels.namespace }}"
+              | filter kubernetes.container_name="elasticsearch"
+              | filter log_processed.error.type="org.elasticsearch.transport.RemoteTransportException"
+            google_log_query_string: |-
+              resource.labels.namespace_name="{{ $labels.namespace }}"
+              resource.labels.container_name="elasticsearch"
+              jsonPayload."error.type"="org.elasticsearch.transport.RemoteTransportException"
+
+    - name: elasticsearch_replica_checks
+      interval: 1h
+      rules:
+        - alert: ElasticWrongReplicaCount
+          # High Availability Elasticsearch must have at least 1 replica for every index.
+          # Otherwise, the cluster will turn red during any Elasticsearch pod restart.
+          expr: |-
+            avg(
+              avg_over_time(
+                elasticsearch_indices_settings_replicas[10m]
+              ) == 0) by (namespace, index)
+            and on (namespace)
+            avg(
+              avg_over_time(
+                elasticsearch_cluster_health_number_of_data_nodes[10m]
+              ) > 1
+            ) by (namespace)
+          for: 1d
+          labels:
+            severity: critical
+            team: |-
+              {{- if match "^(optimize|operate|tasklist|camunda|zeebe)" $labels.index -}}
+                data-layer
+              {{- else -}}
+                controller
+              {{- end -}}
+          annotations:
+            summary: Elasticsearch HA index has zero replicas for more than 1 day.
+            description: |-
+              The Elasticsearch index `{{ $labels.index }}` in namespace `{{ $labels.namespace }}` does not have any replicas for over 1 day.
+              This lack of replicas can cause the cluster to become unhealthy if a elasticsearch pod restarts.
+            dashboard_url: "d/wrong-replica-count-settings/wrong-replica-count-settings?var-namespace={{ $labels.namespace }}"
+            runbook_url: https://cautious-adventure-gg5z6wv.pages.github.io/camunda-runbooks/index-has-no-replicas

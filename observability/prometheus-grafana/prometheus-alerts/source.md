@@ -1,0 +1,1 @@
+https://github.com/camunda/alerts/tree/main/rules

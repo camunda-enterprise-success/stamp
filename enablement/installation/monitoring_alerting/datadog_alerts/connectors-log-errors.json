@@ -1,0 +1,19 @@
+{
+  "name": "[Camunda Application] ConnectorsLogsErrorsDetected",
+  "type": "query alert",
+  "query": "avg(last_20m):sum:logback.events.total{job:connectors-service,level:error,logger NOT io.camunda.connector.runtime.core.outbound.ConnectorJobHandler} by {namespace}.as_rate() > 0",
+  "message": "Connectors service is logging errors for 20 minutes (ConnectorJobHandler excluded).\n\nIMPORTANT: The 'logger' label exclusion only works if 'logger' is configured as a Datadog metric tag in your OpenMetrics check (via dd_labels_as_tags or tags_mapper). If not configured, this monitor will fire on ALL error logs from connectors-service.\n\n@notification-channel",
+  "tags": [
+    "service:camunda",
+    "severity:critical",
+    "folder:camunda-application"
+  ],
+  "options": {
+    "thresholds": {
+      "critical": 0
+    },
+    "notify_no_data": false,
+    "require_full_window": true,
+    "renotify_interval": 60
+  }
+}
