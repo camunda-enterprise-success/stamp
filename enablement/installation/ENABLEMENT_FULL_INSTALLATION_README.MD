@@ -4,7 +4,7 @@
 Can be created e.g. via `make cluster.create` in local/kubernetes/kind-single-region
 
 ## S3 Buckets
-Set up the following bucket structure in your object storage:
+Set up the following bucket structure in your object storage, e.g.:
 ```
 s3://your-backup-bucket/
 ├── web-apps-indices/        ← Web Apps History snapshots (backupHistory)
@@ -18,6 +18,11 @@ s3://your-backup-bucket/
 (start in "installation" directory)
 
 ## 01 Install Prometheus/Grafana
+
+Do first:
+Create file `monitoring_alerting/grafana-secret.yaml.secret` (based on template `grafana-secret.yaml.template`).
+Admin user and password are required. gmail email and password only if alerts should send out emails.
+
 ```bash
 kubectl create configmap grafana-alerts --from-file=monitoring_alerting/camunda-alerts-grafana-managed.yaml -n default 
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
@@ -32,6 +37,13 @@ helm install metrics prometheus-community/kube-prometheus-stack \
 ```
 
 ### 02 Prepare Secrets
+
+TODO: Use own keycloak or commonly known entra app registration instead of the consulting keycloak
+
+Need to know: `permissions/create-secrets.sh` creates K8S secret for clients that already exist in the used external Keycloak.
+
+Do first: Create file `backup_restore/secrets.env.secret` (based on template `secrets.env.template`)
+
 ```bash
 k create ns camunda
 kubens camunda &&
@@ -54,6 +66,9 @@ camunda camunda-platform \
 ```
 
 ## 04 Create some data
+
+TODO: Use c8ctl instead of the scripts.
+
 ```bash
 export AUTH_TOKEN=$(../utils/get-token.sh)
 ../utils/deploy-bpmn.sh
@@ -66,7 +81,9 @@ k apply -f ./backup_restore/register-snapshot-job.yaml
 ```
 
 ## 06 Create Backup ConfigMap
-Update with your backup ID:
+
+TODO: use local minio instead of AWS?
+
 ```bash
 kubectl create configmap camunda-backup-config -n camunda --from-literal=BACKUP_ID=1
 ```
