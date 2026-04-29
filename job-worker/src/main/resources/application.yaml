@@ -1,0 +1,27 @@
+server:
+  port: 8080
+
+camunda:
+  client:
+    # Camunda SaaS (uncomment, fill, and comment out self-managed below if you use SaaS)
+    # mode: saas
+    # cluster-id: YOUR_CLUSTER_ID
+    # client-id: YOUR_OAUTH_CLIENT_ID
+    # client-secret: YOUR_OAUTH_CLIENT_SECRET
+    # region: YOUR_REGION   # e.g. "bru-2"
+
+    # Self-managed Zeebe (default here: localhost:26500)
+    mode: self-managed
+    grpc-address: http://localhost:26500
+    rest-address: http://localhost:8080
+    auth:
+      method: basic
+      username: demo
+      password: demo
+
+
+    worker:
+      defaults:
+        max-jobs-active: 10
+        timeout: PT1M
+    execution-threads: 10

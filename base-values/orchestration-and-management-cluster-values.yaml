@@ -57,7 +57,7 @@ global:
       
       webModeler:
         redirectUrl: https://camunda.example.com/modeler
-  
+
   ingress:
     enabled: true
     className: nginx
@@ -234,6 +234,7 @@ webModelerPostgresql:
   enabled: true
   auth:
     existingSecret: camunda-credentials
+    existingSecretKey:
   primary:
     resources:
       requests:
