@@ -1,0 +1,35 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: exporter
+spec:
+  groups:
+    - name: exporter-alerts
+      rules:
+        - alert: ExporterLag
+          annotations:
+            summary: >-
+              Exporting is lagging behind.
+            description: >-
+              {{ reReplaceAll "-zeebe$" "" .Labels.namespace }} has a large backlog of events to export from partition {{ .Labels.partition }}.
+            runbook_url: https://cautious-adventure-gg5z6wv.pages.github.io/zeebe-runbooks/exporter-lag
+          expr: |-
+            (
+              max by (namespace, partition) (zeebe_log_appender_last_committed_position)
+              -
+              max by (namespace, partition) (zeebe_exporter_last_exported_position)
+            )
+            * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_channel, label_cloud_camunda_io_generation)
+            (
+              max(kube_namespace_labels) by (namespace, label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_channel, label_cloud_camunda_io_generation)
+            )
+            > 1000000
+          for: 1h
+          labels:
+            severity: |-
+              {{- if eq "Stable" $labels.label_cloud_camunda_io_channel -}}
+                page
+              {{- else -}}
+                critical
+              {{- end -}}
+            team: data-layer

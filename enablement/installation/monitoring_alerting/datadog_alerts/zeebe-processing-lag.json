@@ -1,0 +1,19 @@
+{
+  "name": "[Camunda Platform] ZeebeProcessingLag",
+  "type": "query alert",
+  "query": "avg(last_1h):(max:zeebe.log.appender.last.appended.position{*} by {namespace,partition} - max:zeebe.stream.processor.last.processed.position{*} by {namespace,partition}) > 1000",
+  "message": "Zeebe processing lag > 1,000 records for 1 hour. Stream processor is falling behind.\n\n@notification-channel",
+  "tags": [
+    "service:camunda",
+    "severity:critical",
+    "folder:camunda-platform"
+  ],
+  "options": {
+    "thresholds": {
+      "critical": 1000
+    },
+    "notify_no_data": false,
+    "require_full_window": true,
+    "renotify_interval": 60
+  }
+}

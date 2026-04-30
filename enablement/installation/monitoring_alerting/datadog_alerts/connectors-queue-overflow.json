@@ -1,0 +1,19 @@
+{
+  "name": "[Camunda Application] ConnectorsJobWorkerQueueOverflowFor20Minutes",
+  "type": "query alert",
+  "query": "avg(last_20m):max:executor.queued.tasks{name:(zeebe_client_thread_pool OR camundaClientExecutor)} by {namespace} > 79",
+  "message": "Connectors job worker queue >= 80 tasks for 20 minutes — queue overflow risk.\n\nThreshold is >79 (equivalent to >=80; Datadog has no gte evaluator).\n\n@notification-channel",
+  "tags": [
+    "service:camunda",
+    "severity:critical",
+    "folder:camunda-application"
+  ],
+  "options": {
+    "thresholds": {
+      "critical": 79
+    },
+    "notify_no_data": false,
+    "require_full_window": true,
+    "renotify_interval": 60
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "[Camunda Application] ZeebeSLORequestFailureRate",
+  "type": "query alert",
+  "query": "avg(last_1m):sum:grpc.server.handled.total{code:(DEADLINE_EXCEEDED OR UNAVAILABLE),grpc_method NOT CreateProcessInstanceWithResult} by {namespace}.as_rate() / sum:grpc.server.handled.total{grpc_method NOT CreateProcessInstanceWithResult} by {namespace}.as_rate() > 0.005",
+  "message": "gRPC error rate > 0.5% — Zeebe SLO breach. Success rate has dropped below 99.5%.\n\n@notification-channel",
+  "tags": [
+    "service:camunda",
+    "severity:critical",
+    "folder:camunda-application"
+  ],
+  "options": {
+    "thresholds": {
+      "critical": 0.005
+    },
+    "notify_no_data": false,
+    "require_full_window": true,
+    "renotify_interval": 60
+  }
+}

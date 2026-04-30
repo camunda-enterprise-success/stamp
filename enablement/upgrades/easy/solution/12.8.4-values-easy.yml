@@ -1,0 +1,66 @@
+global:
+  ingress:
+    enabled: false
+  elasticsearch:
+    enabled: true
+  multitenancy:
+    enabled: false
+  identity:
+    auth:
+      enabled: false
+
+zeebe:
+  enabled: true
+  clusterSize: "1"
+  partitionCount: "1"
+  replicationFactor: "1"
+  pvcSize: 10Gi
+  resources:
+    requests:
+      cpu: 300m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+zeebeGateway:
+  replicas: 1
+  ingress:
+    grpc:
+      enabled: false
+
+elasticsearch:
+  master:
+    replicaCount: 1
+    persistence:
+      size: 15Gi
+
+
+# Explicitly disable all other components.
+connectors:
+  enabled: false
+
+console:
+  enabled: false
+
+operate:
+  enabled: true
+  contextPath: "/operate"
+
+tasklist:
+  enabled: false
+
+optimize:
+  enabled: false
+
+identity:
+  enabled: false
+
+identityKeycloak:
+  enabled: false
+
+webModeler:
+  enabled: false
+
+postgresql:
+  enabled: false

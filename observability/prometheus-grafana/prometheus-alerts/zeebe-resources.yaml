@@ -1,0 +1,78 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: zeebe-resource-usage
+spec:
+  groups:
+    - name: zeebe-disk-usage
+      interval: 1m
+      rules:
+        # Storage usage by namespace and PVC.
+        - record: namespace_persistentvolumeclaim:camundacluster_cluster_storage_used_bytes:avg
+          expr: |-
+            avg by (job, namespace, persistentvolumeclaim) (
+              kubelet_volume_stats_used_bytes{
+                job="kubelet",
+                metrics_path="/metrics",
+                persistentvolumeclaim=~"(data-zeebe|elasticsearch-data-elasticsearch-statefulset)-.*"
+              }
+            )
+            * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
+            (
+              max(kube_namespace_labels) by (namespace, label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
+            )
+
+        - alert: ZeebeDiskTooFull
+          annotations:
+            summary: >-
+              Zeebe disks are too full.
+            description: >-
+              {{ reReplaceAll "-zeebe$" "" .Labels.namespace }} uses a majority of available disk space. This is often a sign of an unhealthy cluster.
+          expr: |-
+            max by (namespace) (
+              kubelet_volume_stats_used_bytes{persistentvolumeclaim=~".*zeebe.*"}
+              /
+              kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~".*zeebe.*"}
+            )
+            * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
+            (
+              max(
+                kube_namespace_labels{
+                  label_cloud_camunda_io_generation!~"^Camunda_8_8_0_alpha[1-6]$"
+                }
+              )
+              by (
+                namespace,
+                label_cloud_camunda_io_sales_plan_type,
+                label_cloud_camunda_io_cluster_plan_type,
+                label_cloud_camunda_io_generation
+              )
+            )
+            > 0.8
+          for: 1h
+          labels:
+            severity: critical
+            team: zeebe
+
+
+        # TODO: should we keep this dedicated Zeebe alert?
+        - alert: ZeebePodCrashLoopingFor20Minutes
+          annotations:
+            summary: >-
+              Zeebe Pod is crash looping for more than 20 minutes
+            description: >-
+              Zeebe pod {{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }})
+              is restarting {{ printf "%.2f" $value }} times / 5 minutes.
+            dashboard_url: "d/zeebe-dashboard/zeebe?orgId=1&var-namespace={{ $labels.namespace }}"
+            runbook_url: https://github.com/camunda/runbook/blob/main/zeebe/troubleshooting-guide.md#broker-crashes-during-startup
+          expr: |-
+            rate(kube_pod_container_status_restarts_total{job="kube-state-metrics", pod=~".*zeebe.*"}[10m]) * 60 * 5
+            * on (namespace) group_left (label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
+            (
+              max(kube_namespace_labels) by (namespace, label_cloud_camunda_io_sales_plan_type, label_cloud_camunda_io_cluster_plan_type, label_cloud_camunda_io_generation)
+            )
+            > 0
+          for: 20m
+          labels:
+            severity: critical
+            team: zeebe

@@ -1,0 +1,19 @@
+{
+  "name": "[Camunda Infrastructure] ZeebePodCrashLoopingFor20Minutes",
+  "type": "query alert",
+  "query": "avg(last_20m):sum:kubernetes_state.container.restarts{pod:*zeebe*} by {namespace,pod}.as_count() > 0",
+  "message": "A Zeebe pod has been crash-looping for 20 minutes.\n\n@notification-channel",
+  "tags": [
+    "service:camunda",
+    "severity:critical",
+    "folder:camunda-infrastructure"
+  ],
+  "options": {
+    "thresholds": {
+      "critical": 0
+    },
+    "notify_no_data": false,
+    "require_full_window": true,
+    "renotify_interval": 60
+  }
+}

@@ -1,0 +1,7 @@
+orchestration:
+  env:
+    - name: ZEEBE_BROKER_EXECUTION_METRICS_EXPORTER_ENABLED
+      value: "true"
+
+prometheusServiceMonitor:
+  enabled: true

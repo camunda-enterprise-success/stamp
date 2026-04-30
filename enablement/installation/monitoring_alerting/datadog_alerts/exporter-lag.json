@@ -1,0 +1,19 @@
+{
+  "name": "[Camunda Platform] ExporterLag",
+  "type": "query alert",
+  "query": "avg(last_1h):(max:zeebe.log.appender.last.committed.position{*} by {namespace,partition} - max:zeebe.exporter.last.exported.position{*} by {namespace,partition}) > 1000000",
+  "message": "Zeebe exporter lag > 1,000,000 records for 1 hour. Operate/Tasklist data is severely delayed.\n\n@notification-channel",
+  "tags": [
+    "service:camunda",
+    "severity:critical",
+    "folder:camunda-platform"
+  ],
+  "options": {
+    "thresholds": {
+      "critical": 1000000
+    },
+    "notify_no_data": false,
+    "require_full_window": true,
+    "renotify_interval": 60
+  }
+}
