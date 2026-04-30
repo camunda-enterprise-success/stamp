@@ -25,7 +25,7 @@ public class CreditCardHandler {
         this.camundaClient = camundaClient;
     }
 
-    @JobWorker(type = "creditCardCharging", autoComplete = false)
+    @JobWorker(type = "creditCardCharging", autoComplete = true)
     public void handle(JobClient client, ActivatedJob job) {
         log.info("Handling credit card payment for process instance {}", job.getProcessInstanceKey());
 
@@ -37,22 +37,13 @@ public class CreditCardHandler {
             Double amount = Double.valueOf(variables.get("openAmount").toString());
             creditCardService.chargeAmount(cardNumber, cvc, expiryDate, amount);
         } catch (CreditCardExpiredException e) {
-            log.info("Credit card payment failed: {}", e.getLocalizedMessage());
+            log.warn("Error message for instance {}, job {}: {}",job.getProcessInstanceKey(), job.getKey(), e.getMessage(), e);
             client
                     .newThrowErrorCommand(job)
                     .errorCode("creditCardError")
                     .errorMessage(e.getLocalizedMessage())
                     .variables(Map.of("errorMessage", e.getLocalizedMessage()))
                     .send();
-        } catch (Exception e) {
-            log.error(e.getMessage(), e);
-            camundaClient
-                    .newFailCommand(job.getKey())
-                    .retries(job.getRetries() - 1)
-                    .retryBackoff(Duration.ofSeconds(10))
-                    .errorMessage(e.getMessage())
-                    .send();
         }
-        client.newCompleteCommand(job).send().join();
     }
 }

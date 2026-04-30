@@ -25,28 +25,23 @@ public class CustomerCreditHandler {
         this.camundaClient = camundaClient;
     }
 
-    @JobWorker(type = "customerCreditHandling")
+    @JobWorker(type = "customerCreditHandling", autoComplete = true)
     public Map<String, Object> handle(ActivatedJob job) {
         log.info("Handling customer credit for process instance {}", job.getProcessInstanceKey());
+
         Map<String, Object> varMap = new HashMap<>();
-        try {
-            Map<String, Object> variables = job.getVariablesAsMap();
-            String customerId = (String) variables.get("customerId");
-            Double amount = Double.valueOf(variables.get("orderTotal").toString());
+        boolean success = false;
 
-            Double customerCredit = customerService.getCustomerCredit(customerId);
-            Double remainingAmount = customerService.deductCredit(customerId, amount, customerCredit);
+        Map<String, Object> variables = job.getVariablesAsMap();
+        String customerId = (String) variables.get("customerId");
+        Double amount = Double.valueOf(variables.get("orderTotal").toString());
 
-            varMap = Map.of("customerCredit", customerCredit, "remainingAmount", remainingAmount);
-        } catch (Exception e) {
-            log.error(e.getMessage(), e);
-            camundaClient
-                    .newFailCommand(job.getKey())
-                    .retries(job.getRetries() - 1)
-                    .retryBackoff(Duration.ofSeconds(10))
-                    .errorMessage(e.getMessage())
-                    .send();
-        }
+        Double customerCredit = customerService.getCustomerCredit(customerId);
+        Double remainingAmount = customerService.deductCredit(customerId, amount, customerCredit);
+
+        varMap = Map.of("customerCredit", customerCredit, "remainingAmount", remainingAmount);
+
         return varMap;
+
     }
 }

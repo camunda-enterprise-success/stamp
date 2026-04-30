@@ -21,7 +21,7 @@ camunda:
       audience: zeebe-api
       client-id: orchestration
       client-secret: MFc8pvjylKS9KL9z
-    ca-certificate-path: /Users/emma.pollum/Desktop/C8/stamp/job-worker/src/main/resources/tls.crt
+    ca-certificate-path: local/kubernetes/kind-single-region/.certs/tls.crt
 
 
     worker:

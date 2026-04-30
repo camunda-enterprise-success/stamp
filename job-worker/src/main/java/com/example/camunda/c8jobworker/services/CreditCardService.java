@@ -19,7 +19,6 @@ public class CreditCardService {
                 amount);
         if (!validateExpiryDate(expiryDate)) {
             String message = "Expiry date " + expiryDate + " is invalid";
-            log.info("Error message: {}", message);
             throw new CreditCardExpiredException(message);
         }
 
