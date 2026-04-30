@@ -1,0 +1,32 @@
+server:
+  port: 8080
+
+camunda:
+  client:
+    # Camunda SaaS (uncomment, fill, and comment out self-managed below if you use SaaS)
+    # mode: saas
+    # cluster-id: YOUR_CLUSTER_ID
+    # client-id: YOUR_OAUTH_CLIENT_ID
+    # client-secret: YOUR_OAUTH_CLIENT_SECRET
+    # region: YOUR_REGION   # e.g. "bru-2"
+
+    # Self-managed Zeebe (default here: localhost:26500)
+    mode: self-managed
+    grpc-address: https://zeebe-camunda.example.com
+    rest-address: https://camunda.example.com
+    auth:
+      method: oidc
+      # must be http or else need to present a custom truststore and keystore
+      token-url: http://camunda.example.com/auth/realms/camunda-platform/protocol/openid-connect/token
+      audience: zeebe-api
+      client-id: orchestration
+      client-secret: MFc8pvjylKS9KL9z
+    ca-certificate-path: local/kubernetes/kind-single-region/.certs/tls.crt
+
+
+    worker:
+      defaults:
+        max-jobs-active: 10
+        timeout: PT1M
+    execution-threads: 10
+    prefer-rest-over-grpc: true

@@ -190,4 +190,8 @@ $RECYCLE.BIN/
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,intellij,linux,windows
 
+
+### Manual adds
+**/.cert/
+/job-worker/target/
 *.*.secret
