@@ -6,7 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
-@Deployment(resources = {"classpath*:*.bpmn", "classpath*:*.dmn"})
+@Deployment(resources = {"classpath*:*.bpmn", "classpath*:*.dmn", "classpath*:*.form"})
 @EnableScheduling // required for automated process instance creation
 public class Camunda8JobWorkerApplication {
 
