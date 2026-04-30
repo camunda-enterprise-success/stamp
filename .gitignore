@@ -194,3 +194,4 @@ $RECYCLE.BIN/
 ### Manual adds
 **/.cert/
 /job-worker/target/
+*.*.secret

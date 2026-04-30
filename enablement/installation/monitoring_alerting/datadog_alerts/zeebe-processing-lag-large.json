@@ -1,0 +1,19 @@
+{
+  "name": "[Camunda Platform] ZeebeProcessingLagLarge",
+  "type": "query alert",
+  "query": "avg(last_1h):(max:zeebe.log.appender.last.appended.position{*} by {namespace,partition} - max:zeebe.stream.processor.last.processed.position{*} by {namespace,partition}) > 100000",
+  "message": "Zeebe processing lag > 100,000 records for 1 hour. Partition may be stuck.\n\n@notification-channel",
+  "tags": [
+    "service:camunda",
+    "severity:critical",
+    "folder:camunda-platform"
+  ],
+  "options": {
+    "thresholds": {
+      "critical": 100000
+    },
+    "notify_no_data": false,
+    "require_full_window": true,
+    "renotify_interval": 60
+  }
+}

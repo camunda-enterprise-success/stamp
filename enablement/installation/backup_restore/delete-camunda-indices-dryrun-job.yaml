@@ -1,0 +1,56 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: delete-camunda-indices-dryrun
+  labels:
+    type: camunda-maintenance
+spec:
+  template:
+    spec:
+      containers:
+        - name: delete-indices-dryrun
+          image: curlimages/curl
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              
+              echo "========================================="
+              echo "Camunda Indices Deletion - DRY RUN MODE"
+              echo "========================================="
+              echo ""
+              echo "This will show what WOULD be deleted without actually deleting."
+              echo ""
+              
+              # List indices that would be deleted
+              echo "Indices that would be deleted:"
+              echo "-----------------------------"
+              
+              INDICES=$(curl -s "http://camunda-elasticsearch:9200/_cat/indices/camunda-*,operate-*,tasklist-*?v")
+              
+              if [ -z "$INDICES" ]; then
+                echo "No indices found matching the patterns."
+                exit 0
+              fi
+              
+              echo "$INDICES"
+              echo ""
+              
+              INDEX_COUNT=$(curl -s "http://camunda-elasticsearch:9200/_cat/indices/camunda-*,operate-*,tasklist-*?h=index" | wc -l)
+              echo "Total indices to delete: $INDEX_COUNT"
+              
+              # Calculate total size
+              echo ""
+              echo "Storage breakdown:"
+              curl -s "http://camunda-elasticsearch:9200/_cat/indices/camunda-*,operate-*,tasklist-*?h=index,pri.store.size" | \
+                awk '{printf "  %-50s %s\n", $1, $2}'
+              
+              echo ""
+              echo "========================================="
+              echo "DRY RUN COMPLETE - No indices were deleted"
+              echo ""
+              echo "To actually delete these indices, run:"
+              echo "  kubectl apply -f delete-camunda-indices-job.yaml -n camunda"
+              echo "========================================="
+      restartPolicy: Never
+  backoffLimit: 1

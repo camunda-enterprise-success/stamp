@@ -1,0 +1,1072 @@
+apiVersion: 1
+groups:
+
+  # ---------------------------------------------------------------
+  # SLO / Application alerts
+  # ---------------------------------------------------------------
+  - orgId: 1
+    name: zeebe-slo-1m
+    folder: camunda-application
+    interval: 1m
+    rules:
+      - uid: aa0zslo1req001
+        title: ZeebeSLORequestFailureRate
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: |-
+                1 -
+                sum(
+                  rate(
+                    grpc_server_handled_total{
+                      code=~"DEADLINE_EXCEEDED|UNAVAILABLE",
+                      grpc_method!="CreateProcessInstanceWithResult"
+                    }[1m]
+                  )
+                ) by (namespace)
+                /
+                sum(
+                  rate(
+                    grpc_server_handled_total{
+                      grpc_method!="CreateProcessInstanceWithResult"
+                    }[1m]
+                  )
+                ) by (namespace)
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0.995
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 1m
+        labels:
+          severity: critical
+        isPaused: false
+
+  # ---------------------------------------------------------------
+  # Zeebe behavioral alerts
+  # ---------------------------------------------------------------
+  - orgId: 1
+    name: zeebe-behaviors-1m
+    folder: camunda-platform
+    interval: 1m
+    rules:
+      - uid: bb0zbanned0001
+        title: ZeebeBannedInstances
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: |-
+                increase(zeebe_blacklisted_instances_total[5m])
+                or
+                increase(zeebe_banned_instances_total[5m])
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        # for: omitted — original was 0m (fire immediately on first evaluation)
+        labels:
+          severity: critical
+        isPaused: false
+
+      - uid: cc0zdeadpart01
+        title: ZeebeDeadPartition
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: |-
+                min by(namespace) (zeebe_health)
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        labels:
+          # NOTE: original severity was dynamic — "page" for Stable channel, "critical" otherwise.
+          # Grafana managed alerts require static labels; defaulting to "critical".
+          severity: critical
+        isPaused: false
+
+      - uid: dd0zproclag001
+        title: ZeebeProcessingLag
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: |-
+                max by (namespace, partition) (zeebe_log_appender_last_appended_position)
+                -
+                max by (namespace, partition) (zeebe_stream_processor_last_processed_position)
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1000
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 1h
+        labels:
+          severity: critical
+        isPaused: false
+
+      - uid: ee0zproclaglg1
+        title: ZeebeProcessingLagLarge
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: |-
+                max by (namespace, partition) (zeebe_log_appender_last_appended_position)
+                -
+                max by (namespace, partition) (zeebe_stream_processor_last_processed_position)
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 100000
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 1h
+        labels:
+          # NOTE: original severity was dynamic — "page" for Stable channel, "critical" otherwise.
+          severity: critical
+        isPaused: false
+
+      - uid: ff0zloops0001a
+        title: ZeebeLoopsInTasks
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: |-
+                max(
+                  rate(
+                    zeebe_element_instance_events_total{
+                      action="completed",
+                      type=~"TASK|MANUAL_TASK"
+                    }[5m]
+                  )
+                ) by (type, action, namespace)
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 10
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: critical
+        isPaused: false
+
+      - uid: gg0zsegments01
+        title: ZeebeTooManySegments
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: |-
+                max by (namespace, partition) (atomix_segment_count)
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 100
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 1h
+        labels:
+          severity: critical
+        isPaused: false
+
+  # ---------------------------------------------------------------
+  # Exporter alerts
+  # ---------------------------------------------------------------
+  - orgId: 1
+    name: exporter-1m
+    folder: camunda-platform
+    interval: 1m
+    rules:
+      - uid: ll0exporterlag1
+        title: ExporterLag
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: |-
+                max by (namespace, partition) (zeebe_log_appender_last_committed_position)
+                -
+                max by (namespace, partition) (zeebe_exporter_last_exported_position)
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1000000
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 1h
+        labels:
+          # NOTE: original severity was dynamic — "page" for Stable channel, "critical" otherwise.
+          severity: critical
+        isPaused: false
+
+  # ---------------------------------------------------------------
+  # Archiver alerts
+  # ---------------------------------------------------------------
+  - orgId: 1
+    name: archiver-1m
+    folder: camunda-platform
+    interval: 1m
+    rules:
+      - uid: pp0aarchivbkpg
+        title: ArchiverBacklogGrowing
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              # The expression already encodes the "growing" and "non-zero" conditions via
+              # `>= 0` (delta not shrinking) and `> 0` (backlog exists) as inner filters.
+              # The result is the backlog size when both hold; Grafana threshold fires on gt: 0.
+              expr: |-
+                (
+                  delta(
+                    (
+                      sum by (namespace, partition) (zeebe_camunda_exporter_process_instances_awaiting_archival)
+                    )[10m:1m]
+                  ) >= 0
+                )
+                and
+                (
+                  sum by (namespace, partition) (zeebe_camunda_exporter_process_instances_awaiting_archival) > 0
+                )
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 2h
+        labels:
+          severity: critical
+        isPaused: false
+
+  # ---------------------------------------------------------------
+  # Connectors alerts
+  # ---------------------------------------------------------------
+  - orgId: 1
+    name: connectors-1m
+    folder: camunda-application
+    interval: 1m
+    rules:
+      - uid: mm0cconncrash01
+        title: ConnectorsPodCrashLoopingFor20Minutes
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: |-
+                rate(kube_pod_container_status_restarts_total{job="kube-state-metrics", pod=~"connectors-deployment.*"}[10m]) * 60 * 5
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 20m
+        labels:
+          severity: critical
+        isPaused: false
+
+      - uid: nn0cqueueoflow
+        title: ConnectorsJobWorkerQueueOverflowFor20Minutes
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              # Original threshold was >= 80; using gt: 79 to preserve the same semantic
+              # since Grafana evaluators do not have a gte type.
+              expr: |-
+                max_over_time(executor_queued_tasks{name=~"zeebe_client_thread_pool|camundaClientExecutor"}[5m])
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 79
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 20m
+        labels:
+          severity: critical
+        isPaused: false
+
+      - uid: oo0clogserrors1
+        title: ConnectorsLogsErrorsDetected
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: |-
+                rate(logback_events_total{job="connectors-service", level="error", logger!~"io.camunda.connector.runtime.core.outbound.ConnectorJobHandler"}[5m]) * 60
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 20m
+        labels:
+          severity: critical
+        isPaused: false
+
+  # ---------------------------------------------------------------
+  # Elasticsearch alerts (1m evaluation)
+  # ---------------------------------------------------------------
+  - orgId: 1
+    name: elasticsearch-1m
+    folder: camunda-infrastructure
+    interval: 1m
+    rules:
+      - uid: hh0eshards0001
+        title: ElasticHighNumberOfShards
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              # NOTE: the recording rule `elasticsearch:shards_usage:ratio` has been inlined
+              # as a subquery since Grafana managed alerts do not support recording rules.
+              expr: |-
+                avg_over_time(
+                  (
+                    avg(elasticsearch_cluster_health_active_shards) by (namespace)
+                    /
+                    (
+                      avg(elasticsearch_cluster_health_number_of_data_nodes) by (namespace)
+                      *
+                      avg(elasticsearch_clustersettings_stats_max_shards_per_node) by (namespace)
+                    )
+                  )[10m:]
+                )
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0.9
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: critical
+        isPaused: false
+
+      - uid: ii0eilmstopped
+        title: ElasticIlmStopped
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              # The `== 1` filter returns 1 when ILM is STOPPED; result is absent when running.
+              # Threshold gt: 0 fires whenever the expression returns a value.
+              expr: |-
+                avg(
+                  avg_over_time(elasticsearch_ilm_status{operation_mode="STOPPED"}[10m]) == 1
+                ) by (namespace)
+                and on(namespace)
+                elasticsearch_clusterinfo_version_info{version!~"7.*"}
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 24h
+        labels:
+          severity: warning
+        isPaused: false
+
+      - uid: jj0eoomcirc001
+        title: ElasticOOMCircuitBreaker
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: |-
+                sum(
+                  rate(elasticsearch_breakers_tripped[10m])
+                ) by (namespace)
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0.5
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 30m
+        labels:
+          severity: warning
+        isPaused: false
+
+  # ---------------------------------------------------------------
+  # Elasticsearch replica checks (1h evaluation — matches original group interval)
+  # ---------------------------------------------------------------
+  - orgId: 1
+    name: elasticsearch-replica-1h
+    folder: camunda-infrastructure
+    interval: 1h
+    rules:
+      - uid: kk0ewrongrep01
+        title: ElasticWrongReplicaCount
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              # The `== 0` filter returns 0 only for indices with zero replicas; absent otherwise.
+              # Threshold lt: 1 fires when the result is 0 (i.e. replica count is zero).
+              expr: |-
+                avg(
+                  avg_over_time(
+                    elasticsearch_indices_settings_replicas[10m]
+                  ) == 0
+                ) by (namespace, index)
+                and on (namespace)
+                avg(
+                  avg_over_time(
+                    elasticsearch_cluster_health_number_of_data_nodes[10m]
+                  ) > 1
+                ) by (namespace)
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 24h
+        labels:
+          severity: critical
+          # NOTE: original team was dynamic based on index name prefix:
+          # "data-layer" for optimize/operate/tasklist/camunda/zeebe, "controller" otherwise.
+        isPaused: false
+
+  # ---------------------------------------------------------------
+  # Zeebe resource / infrastructure alerts
+  # ---------------------------------------------------------------
+  - orgId: 1
+    name: zeebe-resources-1m
+    folder: camunda-infrastructure
+    interval: 1m
+    rules:
+      - uid: qq0zdisktooful
+        title: ZeebeDiskTooFull
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: |-
+                max by (namespace) (
+                  kubelet_volume_stats_used_bytes{persistentvolumeclaim=~".*zeebe.*"}
+                  /
+                  kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~".*zeebe.*"}
+                )
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0.8
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 1h
+        labels:
+          severity: critical
+        isPaused: false
+
+      - uid: rr0zcrashlloop
+        title: ZeebePodCrashLoopingFor20Minutes
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: |-
+                rate(kube_pod_container_status_restarts_total{job="kube-state-metrics", pod=~".*zeebe.*"}[10m]) * 60 * 5
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 20m
+        labels:
+          severity: critical
+        isPaused: false

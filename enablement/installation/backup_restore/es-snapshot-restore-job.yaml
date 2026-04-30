@@ -1,0 +1,107 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: camunda-es-snapshot-restore-job
+  labels:
+    type: camunda-backup-restore
+spec:
+  template:
+    spec:
+      containers:
+        - name: es-snapshot-restore
+          image: curlimages/curl
+          envFrom:
+            - configMapRef:
+                name: camunda-backup-config
+          env:
+            - name: ELASTIC_ENDPOINT
+              value: "http://camunda-elasticsearch:9200"
+            - name: REPO_OC
+              value: "jens-88-backups-oc"
+            - name: REPO_WEBAPPS
+              value: "jens-88-backups-webapps"
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              
+              echo "========================================="
+              echo "Elasticsearch Snapshot Restore"
+              echo "========================================="
+              echo "Backup ID: $BACKUP_ID"
+              echo "Elasticsearch: $ELASTIC_ENDPOINT"
+              echo ""
+              
+              # Function to restore from a repository
+              restore_from_repo() {
+                local REPO=$1
+                local TYPE=$2
+                
+                echo "----------------------------------------"
+                echo "Checking repository: $REPO ($TYPE)"
+                echo "----------------------------------------"
+                
+                # Get all snapshots from repository
+                SNAPSHOTS=$(curl -s "$ELASTIC_ENDPOINT/_snapshot/$REPO/_all")
+                
+                # Find snapshots matching the backup ID
+                MATCHING=$(echo "$SNAPSHOTS" | grep -o "\"snapshot\":\"[^\"]*$BACKUP_ID[^\"]*\"" | cut -d':' -f2 | tr -d '"')
+                
+                if [ -z "$MATCHING" ]; then
+                  echo "⚠ No snapshots found for backup ID $BACKUP_ID in $REPO"
+                  return 0
+                fi
+                
+                SNAPSHOT_COUNT=$(echo "$MATCHING" | wc -l)
+                echo "Found $SNAPSHOT_COUNT snapshot(s) to restore:"
+                echo "$MATCHING"
+                echo ""
+                
+                # Restore each snapshot
+                echo "$MATCHING" | while read -r SNAPSHOT; do
+                  if [ -n "$SNAPSHOT" ]; then
+                    echo "Restoring: $SNAPSHOT"
+                    
+                    RESPONSE=$(curl -s -X POST "$ELASTIC_ENDPOINT/_snapshot/$REPO/$SNAPSHOT/_restore?wait_for_completion=true" \
+                      -H 'Content-Type: application/json' \
+                      -d '{
+                        "include_global_state": false,
+                        "include_aliases": true
+                      }')
+                    
+                    # Check if restore was successful
+                    if echo "$RESPONSE" | grep -q '"accepted":true'; then
+                      echo "✓ Restore accepted for $SNAPSHOT"
+                    else
+                      echo "Response: $RESPONSE"
+                      STATE=$(echo "$RESPONSE" | grep -o '"state":"[^"]*"' | cut -d':' -f2 | tr -d '"')
+                      if [ "$STATE" = "SUCCESS" ]; then
+                        echo "✓ Restore completed for $SNAPSHOT"
+                      else
+                        echo "⚠ Restore may have failed: $RESPONSE"
+                      fi
+                    fi
+                    echo ""
+                  fi
+                done
+                
+                echo "✓ Completed restoring from $REPO"
+                echo ""
+              }
+              
+              # Restore from OC indices repository
+              restore_from_repo "$REPO_OC" "OC Indices"
+              
+              # Restore from Web Apps repository
+              restore_from_repo "$REPO_WEBAPPS" "Web Apps Indices"
+              
+              echo "========================================="
+              echo "Restore Operations Complete"
+              echo "========================================="
+              echo ""
+              
+              # Show restored indices
+              echo "Restored indices:"
+              curl -s "$ELASTIC_ENDPOINT/_cat/indices?v"
+      restartPolicy: Never
+  backoffLimit: 1

@@ -1,0 +1,19 @@
+{
+  "name": "[Camunda Infrastructure] ElasticOOMCircuitBreaker",
+  "type": "query alert",
+  "query": "avg(last_30m):sum:elasticsearch.breakers.tripped{*} by {namespace}.as_rate() > 0.5",
+  "message": "Elasticsearch OOM circuit breaker tripping at > 0.5 trips/s for 30 minutes.\n\n@notification-channel",
+  "tags": [
+    "service:camunda",
+    "severity:warning",
+    "folder:camunda-infrastructure"
+  ],
+  "options": {
+    "thresholds": {
+      "critical": 0.5
+    },
+    "notify_no_data": false,
+    "require_full_window": true,
+    "renotify_interval": 60
+  }
+}

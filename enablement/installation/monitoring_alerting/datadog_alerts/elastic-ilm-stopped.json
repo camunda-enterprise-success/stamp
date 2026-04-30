@@ -1,0 +1,19 @@
+{
+  "name": "[Camunda Infrastructure] ElasticIlmStopped",
+  "type": "query alert",
+  "query": "avg(last_1d):avg:elasticsearch.ilm.status{operation_mode:STOPPED} by {namespace} > 0",
+  "message": "Elasticsearch ILM (Index Lifecycle Management) has been in STOPPED state for 24 hours.\n\nNote: the original alert excluded ES 7.x clusters. If your environment contains mixed ES versions, add a version tag filter (e.g. es_version NOT 7*).\n\n@notification-channel",
+  "tags": [
+    "service:camunda",
+    "severity:warning",
+    "folder:camunda-infrastructure"
+  ],
+  "options": {
+    "thresholds": {
+      "critical": 0
+    },
+    "notify_no_data": false,
+    "require_full_window": true,
+    "renotify_interval": 60
+  }
+}

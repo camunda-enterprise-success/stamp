@@ -1,0 +1,140 @@
+global:
+  security:
+    authentication:
+      method: oidc
+
+orchestration:
+  security:
+    initialization:
+      defaultRoles:
+        admin:
+          users:
+            - "jens-admin"
+      ## @param orchestration.security.initialization.mappingRules defines the mapping rules when connected to an OIDC provider.
+      mappingRules:
+        - mappingRuleId: operator-role
+          claimName: realm_access.roles
+          claimValue: operator
+        - mappingRuleId: task-user-role
+          claimName: realm_access.roles
+          claimValue: task-user
+        - mappingRuleId: benchmark-client
+          claimName: client_id
+          claimValue: benchmark-client
+        - mappingRuleId: connectors-client
+          claimName: client_id
+          claimValue: connectors-client
+      ## @param orchestration.security.initialization.authorizations defines the authorizations for mapping rules.
+      authorizations:
+        # Operator role authorizations
+        - ownerType: MAPPING_RULE
+          ownerId: operator-role
+          resourceType: PROCESS_DEFINITION
+          resourceId: "*"
+          permissions:
+            - READ_PROCESS_DEFINITION
+            - READ_PROCESS_INSTANCE
+            - UPDATE_PROCESS_INSTANCE
+            - MODIFY_PROCESS_INSTANCE
+            - CANCEL_PROCESS_INSTANCE
+            - DELETE_PROCESS_INSTANCE
+        - ownerType: MAPPING_RULE
+          ownerId: operator-role
+          resourceType: BATCH
+          resourceId: "*"
+          permissions:
+            - CREATE
+            - CREATE_BATCH_OPERATION_CANCEL_PROCESS_INSTANCE
+            - CREATE_BATCH_OPERATION_DELETE_PROCESS_INSTANCE
+            - CREATE_BATCH_OPERATION_MIGRATE_PROCESS_INSTANCE
+            - CREATE_BATCH_OPERATION_MODIFY_PROCESS_INSTANCE
+            - CREATE_BATCH_OPERATION_RESOLVE_INCIDENT
+            - CREATE_BATCH_OPERATION_DELETE_DECISION_INSTANCE
+            - CREATE_BATCH_OPERATION_DELETE_DECISION_DEFINITION
+            - CREATE_BATCH_OPERATION_DELETE_PROCESS_DEFINITION
+            - READ
+            - UPDATE
+        - ownerType: MAPPING_RULE
+          ownerId: operator-role
+          resourceType: COMPONENT
+          resourceId: operate
+          permissions:
+            - ACCESS
+        # Task-user role authorizations
+        - ownerType: MAPPING_RULE
+          ownerId: task-user-role
+          resourceType: PROCESS_DEFINITION
+          resourceId: "*"
+          permissions:
+            - READ_USER_TASK
+            - UPDATE_USER_TASK
+        - ownerType: MAPPING_RULE
+          ownerId: task-user-role
+          resourceType: COMPONENT
+          resourceId: tasklist
+          permissions:
+            - ACCESS
+        # Benchmark-client authorizations
+        - ownerType: MAPPING_RULE
+          ownerId: benchmark-client
+          resourceType: PROCESS_DEFINITION
+          resourceId: "*"
+          permissions:
+            - CREATE_PROCESS_INSTANCE
+            - UPDATE_PROCESS_INSTANCE
+        - ownerType: MAPPING_RULE
+          ownerId: benchmark-client
+          resourceType: RESOURCE
+          resourceId: "*"
+          permissions:
+            - CREATE
+        # Connectors-client authorizations
+        - ownerType: MAPPING_RULE
+          ownerId: connectors-client
+          resourceType: PROCESS_DEFINITION
+          resourceId: "*"
+          permissions:
+            - CREATE_PROCESS_INSTANCE
+            - UPDATE_PROCESS_INSTANCE
+        - ownerType: MAPPING_RULE
+          ownerId: connectors-client
+          resourceType: RESOURCE
+          resourceId: "*"
+          permissions:
+            - CREATE
+
+    authentication:
+      oidc:
+        ## @param orchestration.security.authentication.oidc.clientId defines the client id, which is used by Orchestration Cluster in authentication flows.
+        clientId: oc-client
+        ## @param orchestration.security.authentication.oidc.audience defines the audience, which is used by Orchestration Cluster.
+        audience: oc-client
+        secret:
+          existingSecret: "jens-keycloak-client-secrets"
+          existingSecretKey: "oc-secret"
+        issuer: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc
+        issuerBackendUrl: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc
+        tokenUrl: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc/protocol/openid-connect/token
+        jwksUrl: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc/protocol/openid-connect/certs
+        publicIssuerUrl: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc
+        type: "GENERIC"
+        redirectUrl: "http://localhost:8080/"
+        # Configure the claim in the access token to identify a client, default: client_id
+        clientIdClaim: client_id
+        # Configure the claim in the access token to identify a user by, default: preferred_username
+        usernameClaim: preferred_username
+        # Configure the claim in the access token to retrieve groups from, default: groups
+        groupsClaim: groups
+        scope:
+          - openid
+          - profile
+          - offline_access
+        preferUsernameClaim: false
+  multitenancy:
+    checks:
+      enabled: false # default
+  api:
+    enabled: true # default
+  ingress:
+    grpc:
+      enabled: false

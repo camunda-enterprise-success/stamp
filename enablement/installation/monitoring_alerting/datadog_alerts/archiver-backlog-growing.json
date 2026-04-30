@@ -1,0 +1,19 @@
+{
+  "name": "[Camunda Platform] ArchiverBacklogGrowing",
+  "type": "query alert",
+  "query": "avg(last_2h):sum:zeebe.camunda.exporter.process.instances.awaiting.archival{*} by {namespace,partition} > 0",
+  "message": "Archiver backlog has been non-zero for 2 hours — potential archival bottleneck.\n\nNote: the original alert also required the backlog to not be shrinking (delta >= 0 over 10m). Verify archival is not actively processing before acting.\n\n@notification-channel",
+  "tags": [
+    "service:camunda",
+    "severity:critical",
+    "folder:camunda-platform"
+  ],
+  "options": {
+    "thresholds": {
+      "critical": 0
+    },
+    "notify_no_data": false,
+    "require_full_window": true,
+    "renotify_interval": 60
+  }
+}

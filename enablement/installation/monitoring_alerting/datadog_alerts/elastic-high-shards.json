@@ -1,0 +1,19 @@
+{
+  "name": "[Camunda Infrastructure] ElasticHighNumberOfShards",
+  "type": "query alert",
+  "query": "avg(last_10m):(avg:elasticsearch.cluster.health.active.shards{*} by {namespace} / (avg:elasticsearch.cluster.health.number.of.data.nodes{*} by {namespace} * avg:elasticsearch.clustersettings.stats.max.shards.per.node{*} by {namespace})) > 0.9",
+  "message": "Elasticsearch shard usage > 90% of cluster capacity. Risk of shard allocation failures.\n\nMetric names assume Prometheus elasticsearch_exporter scraped via OpenMetrics. If using Datadog's native ES integration, update metric names accordingly.\n\n@notification-channel",
+  "tags": [
+    "service:camunda",
+    "severity:critical",
+    "folder:camunda-infrastructure"
+  ],
+  "options": {
+    "thresholds": {
+      "critical": 0.9
+    },
+    "notify_no_data": false,
+    "require_full_window": true,
+    "renotify_interval": 60
+  }
+}

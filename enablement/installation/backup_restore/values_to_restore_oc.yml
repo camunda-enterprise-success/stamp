@@ -1,0 +1,127 @@
+orchestration:
+  contextPath: "/"
+  security:
+    initialization:
+      defaultRoles:
+        admin:
+          mappingRules:
+            - "demo-user-mapping-rule"
+          users:
+            - "test"
+        app-integrations:
+          clients:
+            - app-integrator
+      ## @param orchestration.security.initialization.mappingRules defines the mapping rules when connected to an OIDC provider.
+      mappingRules:
+        - mappingRuleID: demo-user-mapping-rule
+          claimName: preferred_username
+          claimValue: demo
+        - mappingRuleId: operator-role
+          claimName: realm_access.roles
+          claimValue: operator
+        - mappingRuleId: task-user-role
+          claimName: realm_access.roles
+          claimValue: task-user
+    authentication:
+      oidc:
+        ## @param orchestration.security.authentication.oidc.clientId defines the client id, which is used by Orchestration Cluster in authentication flows.
+        clientId: oc-client
+        ## @param orchestration.security.authentication.oidc.audience defines the audience, which is used by Orchestration Cluster.
+        audience: oc-client
+        secret:
+          existingSecret: "jens-keycloak-client-secrets"
+          existingSecretKey: "oc-secret"
+        issuer: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc
+        issuerBackendUrl: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc
+        tokenUrl: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc/protocol/openid-connect/token
+        jwksUrl: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc/protocol/openid-connect/certs
+        publicIssuerUrl: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc
+        type: "GENERIC"
+        redirectUrl: "http://localhost:8080/"
+        # Configure the claim in the access token to identify a client, default: client_id
+        clientIdClaim: client_id
+        # Configure the claim in the access token to identify a user by, default: preferred_username
+        usernameClaim: preferred_username
+        # Configure the claim in the access token to retrieve groups from, default: groups
+        groupsClaim: groups
+        scope:
+          - openid
+          - profile
+          - offline_access
+        preferUsernameClaim: false
+
+  clusterSize: "1"
+  partitionCount: "1"
+  replicationFactor: "1"
+  pvcSize: 20Gi
+  #    pvcStorageClassName: "<your-non-default-storage-class>"
+
+  multitenancy:
+    checks:
+      enabled: false # default
+  api:
+    enabled: true # default
+  ingress:
+    grpc:
+      enabled: false
+
+  resources:
+    requests:
+      cpu: "400m"
+      memory: "1000Mi"
+    limits:
+      cpu: "800m"
+      memory: "2000Mi"
+
+  env:
+    - name: ZEEBE_BROKER_EXECUTION_METRICS_EXPORTER_ENABLED
+      value: "true"
+    - name: CAMUNDA_DATA_BACKUP_STORE
+      value: "S3"
+    - name: CAMUNDA_DATA_BACKUP_S3_REGION
+      value: "eu-central-1"
+    - name: CAMUNDA_DATA_BACKUP_S3_ENDPOINT
+      value: "https://s3.eu-central-1.amazonaws.com"
+    - name: CAMUNDA_DATA_BACKUP_S3_ACCESSKEY
+      valueFrom:
+        secretKeyRef:
+          name: camunda-backup-s3-credentials
+          key: access-key
+    - name: CAMUNDA_DATA_BACKUP_S3_SECRETKEY
+      valueFrom:
+        secretKeyRef:
+          name: camunda-backup-s3-credentials
+          key: secret-key
+
+    - name: CAMUNDA_DATA_BACKUP_S3_BASEPATH
+      value: "oc-runtime"   # base path for Zeebe runtime backups (managed by Camunda)
+    - name: CAMUNDA_DATA_BACKUP_S3_BUCKETNAME
+      value: "jens-88-backups"
+    - name: CAMUNDA_DATA_BACKUP_REPOSITORY_NAME
+      value: "jens-88-backups-webapps"   # Elasticsearch repository name for backupHistory
+
+    - name: SPRING_PROFILES_INCLUDE
+      value: "backup"
+    - name: ZEEBE_RESTORE
+      value: "true"
+    - name: ZEEBE_RESTORE_FROM_BACKUP_ID
+      valueFrom:
+        configMapKeyRef:
+          name: camunda-backup-config
+          key: BACKUP_ID
+
+elasticsearch:
+  master:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: "1000m"
+        memory: "2Gi"
+      limits:
+        cpu: "2000m"
+        memory: "2Gi"
+  global:
+    kibanaEnabled: false
+
+connectors:
+  enabled: false

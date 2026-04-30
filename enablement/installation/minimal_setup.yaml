@@ -1,0 +1,50 @@
+global:
+  security:
+    authentication:
+      method: basic
+
+orchestration:
+  contextPath: "/"
+  clusterSize: "1"
+  partitionCount: "1"
+  replicationFactor: "1"
+  pvcSize: 20Gi
+  resources:
+    requests:
+      cpu: "400m"
+      memory: "1000Mi"
+    limits:
+      cpu: "800m"
+      memory: "2000Mi"
+
+elasticsearch:
+  master:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: "1000m"
+        memory: "2Gi"
+      limits:
+        cpu: "2000m"
+        memory: "2Gi"
+  global:
+    kibanaEnabled: false
+
+identity:
+  enabled: false
+identityPostgresql:
+  enabled: false
+identityKeycloak:
+  enabled: false
+optimize:
+  enabled: false
+connectors:
+  enabled: false
+webModeler:
+  enabled: false
+console:
+  enabled: false
+postgresql:
+  enabled: false
+prometheusServiceMonitor:
+  enabled: false
