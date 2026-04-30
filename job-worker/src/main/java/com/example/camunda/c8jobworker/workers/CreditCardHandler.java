@@ -37,7 +37,7 @@ public class CreditCardHandler {
             Double amount = Double.valueOf(variables.get("openAmount").toString());
             creditCardService.chargeAmount(cardNumber, cvc, expiryDate, amount);
         } catch (CreditCardExpiredException e) {
-            log.warn("Error message for instance {}, job {}: {}",job.getProcessInstanceKey(), job.getKey(), e.getMessage(), e);
+            log.warn("Error message for instance {}, job {}: {}",job.getProcessInstanceKey(), job.getKey(), e.getMessage());
             client
                     .newThrowErrorCommand(job)
                     .errorCode("creditCardError")
