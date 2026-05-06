@@ -241,17 +241,11 @@ Check backup status:
 curl "http://localhost:9600/actuator/backupRuntime/1"
 ```
 
-Check that the Elasticsearch snapshot repository is reachable:
-
-```bash
-curl "http://localhost:9200/_snapshot/camunda"
-```
-
 ---
 
 ## Reference
 
-- [Camunda 8.8 Backup & Restore docs](https://docs.camunda.io/docs/self-managed/operational-guides/backup-restore/backup-and-restore/)
-- [Camunda 8.8 Create a Backup](https://docs.camunda.io/docs/self-managed/operational-guides/backup-restore/backup/)
-- [Configure Helm chart components](https://docs.camunda.io/docs/self-managed/deployment/helm/configure/application-configs/)
-- [Optimize Backup API](https://docs.camunda.io/docs/self-managed/operational-guides/backup-restore/optimize-backup/)
+- [Camunda 8.8 Backup & Restore docs](https://docs.camunda.io/docs/8.8/self-managed/operational-guides/backup-restore/backup-and-restore/)
+- [Camunda 8.8 Create a Backup](https://docs.camunda.io/docs/8.8/self-managed/operational-guides/backup-restore/backup/)
+- [Configure Helm chart components](https://docs.camunda.io/docs/8.8/self-managed/deployment/helm/configure/application-configs/)
+- [Optimize Backup API](https://docs.camunda.io/docs/8.8/self-managed/operational-guides/backup-restore/optimize-backup/)

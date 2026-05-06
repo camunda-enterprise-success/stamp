@@ -1,0 +1,46 @@
+orchestration:
+  env:
+    - name: CAMUNDA_DATA_BACKUP_REPOSITORYNAME
+      value: "camunda"
+    - name: ZEEBE_BROKER_DATA_BACKUP_STORE
+      value: "GCS"
+    - name: ZEEBE_BROKER_DATA_BACKUP_GCS_BUCKETNAME
+      value: "camunda-backups"
+    - name: GOOGLE_APPLICATION_CREDENTIALS
+      value: /var/secrets/google/service-account-key.json
+
+  extraVolumes:
+    - name: gcs-credentials
+      secret:
+        secretName: camunda-gcs-backup-credentials
+
+  extraVolumeMounts:
+    - name: gcs-credentials
+      mountPath: /var/secrets/google
+      readOnly: true
+
+optimize:
+  env:
+    - name: CAMUNDA_OPTIMIZE_BACKUP_REPOSITORY_NAME
+      value: "camunda"
+
+elasticsearch:
+  master:
+    extraVolumes:
+      - name: gcs-credentials
+        secret:
+          secretName: camunda-gcs-backup-credentials
+
+    extraVolumeMounts:
+      - name: gcs-credentials
+        mountPath: /var/secrets/google
+        readOnly: true
+
+    initScripts:
+      keystore-gcs.sh: |
+        #!/bin/sh
+        set -e
+        elasticsearch-keystore create --silent || true
+        elasticsearch-keystore add-file --force \
+          gcs.client.default.credentials_file \
+          /var/secrets/google/service-account-key.json
