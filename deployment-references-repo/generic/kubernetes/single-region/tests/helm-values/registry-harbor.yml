@@ -1,0 +1,9 @@
+---
+# This file contains specific values used during the integration tests
+# Using the Camunda harbor registry as Docker Hub is too slow on Azure
+
+global:
+    image:
+        registry: registry.camunda.cloud
+        pullSecrets:
+            - name: registry-camunda-cloud
