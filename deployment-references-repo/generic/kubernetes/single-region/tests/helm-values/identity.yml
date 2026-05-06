@@ -1,0 +1,37 @@
+---
+# keep it synced with https://github.com/camunda/camunda-platform-helm/blob/main/charts/camunda-platform-8.9/test/integration/scenarios/common/values-integration-test.yaml
+# it generates the CI user used to connect to the platform
+identity:
+    clients:
+        - id: venom
+          name: Venom
+          # adjusted to align with our tests
+          secret:
+              existingSecret: identity-secret-for-components-integration
+              existingSecretKey: identity-admin-client-secret
+          redirectUris: /dummy
+          rootUrl: http://dummy
+          type: confidential
+          permissions:
+              - resourceServerId: camunda-identity-resource-server
+                definition: read
+              - resourceServerId: camunda-identity-resource-server
+                definition: write
+              - resourceServerId: orchestration-api
+                definition: read:*
+              - resourceServerId: orchestration-api
+                definition: write:*
+              - resourceServerId: optimize-api
+                definition: write:*
+              - resourceServerId: web-modeler-api
+                definition: write:*
+              - resourceServerId: console-api
+                definition: write:*
+
+orchestration:
+    security:
+        initialization:
+            defaultRoles:
+                admin:
+                    clients:
+                        - venom

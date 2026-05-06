@@ -20,8 +20,8 @@ camunda:
       token-url: http://camunda.example.com/auth/realms/camunda-platform/protocol/openid-connect/token
       audience: zeebe-api
       client-id: orchestration
-      client-secret: MFc8pvjylKS9KL9z
-    ca-certificate-path: local/kubernetes/kind-single-region/.certs/tls.crt
+      client-secret: ldEHC0Rnn2balrIl
+    ca-certificate-path: deployment-references-repo/local/kubernetes/kind-single-region/.certs/tls.crt
 
 
     worker:
