@@ -1,0 +1,48 @@
+orchestration:
+  env:
+    - name: CAMUNDA_DATA_BACKUP_REPOSITORYNAME
+      value: "camunda"
+    - name: ZEEBE_BROKER_DATA_BACKUP_STORE
+      value: "AZURE"
+    - name: ZEEBE_BROKER_DATA_BACKUP_AZURE_ACCOUNTNAME
+      valueFrom:
+        secretKeyRef:
+          name: camunda-azure-backup-credentials
+          key: account-name
+    - name: ZEEBE_BROKER_DATA_BACKUP_AZURE_ACCOUNTKEY
+      valueFrom:
+        secretKeyRef:
+          name: camunda-azure-backup-credentials
+          key: account-key
+    - name: ZEEBE_BROKER_DATA_BACKUP_AZURE_CONTAINERNAME
+      value: "camunda-backups"
+
+optimize:
+  env:
+    - name: CAMUNDA_OPTIMIZE_BACKUP_REPOSITORY_NAME
+      value: "my_azure_repository"
+
+elasticsearch:
+  master:
+    extraEnvVars:
+      - name: ELASTICSEARCH_AZURE_ACCOUNT_NAME
+        valueFrom:
+          secretKeyRef:
+            name: camunda-azure-backup-credentials
+            key: account-name
+      - name: ELASTICSEARCH_AZURE_ACCOUNT_KEY
+        valueFrom:
+          secretKeyRef:
+            name: camunda-azure-backup-credentials
+            key: account-key
+
+    # Init script to populate the keystore before Elasticsearch starts
+    initScripts:
+      keystore-azure.sh: |
+        #!/bin/sh
+        set -e
+        elasticsearch-keystore create --silent || true
+        echo "${ELASTICSEARCH_AZURE_ACCOUNT_NAME}" \
+          | elasticsearch-keystore add --stdin --force azure.client.default.account
+        echo "${ELASTICSEARCH_AZURE_ACCOUNT_KEY}" \
+          | elasticsearch-keystore add --stdin --force azure.client.default.key
