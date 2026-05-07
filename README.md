@@ -20,7 +20,7 @@ stamp/
 │   └── !!!-management-cluster/                 # 🚧 Management cluster config
 │
 ├── auth/                                 # Authentication overlays (layer on top of base)
-│   ├── entra/                            # Microsoft Entra ID / OIDC
+│   ├── entra/                            # Microsoft Entra ID / OIDC ✅
 │   ├── !!!-keycloak/                     # 🚧 Keycloak OIDC
 │   └── !!!-irsa/                         # 🚧 AWS IRSA
 │
@@ -29,8 +29,8 @@ stamp/
 │   │   ├── s3-backup-values.yaml         # S3 backup Helm values
 │   │   └── s3-backup-runbook.md          # S3 backup runbook
 │   ├── azure-blob/
-│   │   ├── azure-blob-backup-values.yaml # 🚧 
-│   │   └── azure-blob-backup-runbook.md  # 🚧 
+│   │   ├── azure-blob-backup-values.yaml # 🚧
+│   │   └── azure-blob-backup-runbook.md  # 🚧
 │   └── gcs/
 │       ├── gcs-backup-values.yaml        # 🚧
 │       └── gcs-backup-runbook.md         # 🚧
@@ -42,13 +42,18 @@ stamp/
 │   ├── !!!-dynatrace/                      # 🚧 Dynatrace integration
 │   └── cloudwatch/                         # CloudWatch integration
 │
+├── job-worker/                           # Sample job worker for process instance creation
+│
+├── enablement/                           # TAM training content and onboarding materials
+│
+├── deployment-references-repo/           # Mirror of camunda/camunda-deployment-references
+│
 └── terraform/                           # Terraform runbooks
     ├── aws/
     │   └── README.md                    # AWS specific terraform runbook
     ├─ !!!-azure/
     │   └── !!!-README.md                # 🚧 Azure specific terraform runbook
     └── README.md                        # Generic Terraform instructions
-    
 ```
 
 > Directories prefixed with `!!!-` are reserved placeholders for future scenarios. They are intentionally empty.
@@ -84,7 +89,7 @@ helm upgrade --install camunda camunda/camunda-platform \
 
 # S3 backups
 helm upgrade --install camunda camunda/camunda-platform \
-  --version 8.8 \
+  --version 13.7.0 \
   --namespace camunda --create-namespace \
   -f base-values/values-orchestration-cluster.yaml \
   -f base-values/values-local-tls.yaml \
@@ -112,11 +117,12 @@ Update `global.ingress.host` and the orchestration `ingress.grpc.host` before de
 Overlay for local development environments using a [mkcert](https://github.com/FiloSottile/mkcert)-generated CA. Configures all Camunda components to trust the local CA certificate via a `mkcert-ca` ConfigMap:
 
 | Component type | Trust mechanism |
-|---|---|
+| --- | --- |
 | Java (WebModeler restapi, Connectors, Identity, Optimize, Orchestration/Zeebe) | `initContainer` copies JVM cacerts, imports CA via `keytool`, sets `JAVA_TOOL_OPTIONS` |
 | Node.js (WebModeler webapp, websockets, Console) | `NODE_EXTRA_CA_CERTS` env var |
 
 **Prerequisite:** Ensure the ConfigMap is created by the [camunda-deployment-references](https://github.com/camunda/camunda-deployment-references) repository before installing:
+
 ```bash
 ./procedure/certs-create-ca-configmap.sh
 ```
@@ -141,13 +147,14 @@ helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
 Key settings to review before deploying:
 
 | Setting | Location | Default |
-|---|---|---|
+| --- | --- | --- |
 | `storageClassName` | `prometheus.prometheusSpec.storageSpec` | commented out (uses cluster default) |
 | `grafana.adminPassword` | top-level | `changeme` |
 | `retention` / `retentionSize` | `prometheus.prometheusSpec` | 30d / 40GB |
 | Grafana ingress | `grafana.ingress` | disabled |
 
 Once deployed, enable Camunda ServiceMonitors by adding to your Camunda values:
+
 ```yaml
 prometheusServiceMonitor:
   enabled: true
@@ -164,7 +171,7 @@ See [`prometheus-grafana-runbook.md`](observability/prometheus-grafana/prometheu
 STAMP provides per-destination overlays with paired values + runbook files. Each backup destination is self-contained:
 
 | Destination | Values file | Runbook |
-|---|---|---|
+| --- | --- | --- |
 | AWS S3 | `backups/s3/s3-backup-values.yaml` | `backups/s3/s3-backup-runbook.md` |
 | Azure Blob Storage | `backups/azure-blob/azure-blob-backup-values.yaml` | `backups/azure-blob/azure-blob-backup-runbook.md` |
 | Google Cloud Storage | `backups/gcs/gcs-backup-values.yaml` | `backups/gcs/gcs-backup-runbook.md` |
@@ -173,13 +180,35 @@ STAMP provides per-destination overlays with paired values + runbook files. Each
 
 ## Authentication
 
-Auth overlays are in progress. Planned providers:
+### Microsoft Entra ID (`auth/entra/`)
 
-| Provider | Directory |
-|---|---|
-| Microsoft Entra ID (OIDC) | `auth/!!!-entra/` |
-| Keycloak (OIDC) | `auth/!!!-keycloak/` |
-| AWS IRSA | `auth/!!!-irsa/` |
+OIDC integration with Microsoft Entra ID (formerly Azure AD). See the runbook inside `auth/entra/` for setup steps including app registration, redirect URIs, and the required Helm overlay.
+
+Planned providers:
+
+| Provider | Directory | Status |
+| --- | --- | --- |
+| Microsoft Entra ID (OIDC) | `auth/entra/` | ✅ Available |
+| Keycloak (OIDC) | `auth/!!!-keycloak/` | 🚧 Planned |
+| AWS IRSA | `auth/!!!-irsa/` | 🚧 Planned |
+
+---
+
+## Job Worker
+
+`job-worker/` contains a sample job worker for creating Camunda process instances. It is intended as a quick starting point for demos and POC environments where you need to drive process execution without a real application backend.
+
+---
+
+## Enablement
+
+`enablement/` contains TAM training content and onboarding materials for getting customers and internal teams up to speed on Camunda 8 deployments.
+
+---
+
+## Deployment References Mirror
+
+`deployment-references-repo/` is a mirror of the official [camunda/camunda-deployment-references](https://github.com/camunda/camunda-deployment-references) repository, kept here for convenience so TAMs have a single place to reference both the upstream IaC and STAMP overlays side by side.
 
 ---
 
