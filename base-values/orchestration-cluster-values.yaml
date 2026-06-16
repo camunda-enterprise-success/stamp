@@ -39,7 +39,8 @@ global:
 
 orchestration:
   enabled: true
-  contextPath: / # components sit at root path of camunda.example.com
+  contextPath: /
+  # components sit at root path of camunda.example.com
 
   # GRPC Ingress
   ingress:

@@ -13,7 +13,7 @@ stamp/
 ├── README.md
 │
 ├── base-values/                          # Starting point for every deployment
-│   ├── values-orchestration-cluster.yaml       # Core 1-node Camunda 8.8 values (basic auth)
+│   ├── values-orchestration-cluster.yaml      # Core 1-node Camunda 8.8 values (basic auth)
 │   ├── values-local-tls.yaml                   # mkcert CA trust overlay (local HTTPS)
 │   ├── camunda-credentials.yaml                # Credential references
 │   ├── !!!-operators/                          # 🚧 Operator configs
