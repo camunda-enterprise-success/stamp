@@ -5,3 +5,12 @@ orchestration:
 
 prometheusServiceMonitor:
   enabled: true
+
+elasticsearch:
+  metrics:
+    extraArgs:
+      - --es.indices_settings
+      - --es.ilm
+    enabled: true
+    serviceMonitor:
+      enabled: true

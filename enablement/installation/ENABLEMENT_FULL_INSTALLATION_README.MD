@@ -50,7 +50,7 @@ These two paths are kept separate because they use different backup mechanisms:
 
 # Installation
 
-*(Run all commands from the `installation/` directory)*
+*(Run all commands from the `installation/` directory)* 
 
 ## 01 Install Prometheus/Grafana
 
@@ -103,6 +103,7 @@ cd backup_restore && ./create-secrets.sh && cd ..
 
 The four `-f` flags compose the full configuration. Helm merges them in order — later files override earlier ones for any overlapping keys.
 
+### With auth etc.
 ```bash
 helm upgrade --install \
   --create-namespace \
@@ -115,6 +116,23 @@ helm upgrade --install \
   -f ./with_monitoring_alerting.yaml \
   -f ./values_with_backup_restore.yml
 ```
+
+### Without auth
+```bash
+helm upgrade --install \
+--create-namespace \
+camunda camunda-platform \
+--repo https://helm.camunda.io \
+--version 13.5.0 \
+--namespace camunda \
+-f ./minimal_setup.yaml \
+-f ./without_auth.yaml
+```
+
+
+curl -L -X POST 'http://localhost:8080/v2/deployments' -H 'Content-Type: multipart/form-data' -H 'Accept: application/json' -F 'resources=@/models/CamundaProcess.bpmn'
+
+
 
 Wait for all pods to be `Running`:
 
