@@ -1,4 +1,4 @@
-# STAMP: Base values.yaml for Camunda 8.8 - Management Cluster
+# STAMP: Base values.yaml for Camunda 8.9 - Management Cluster
 # ============================================================
 # This is an opinionated starting point for a TAM-assisted
 # deployment of the Camunda management components.
@@ -16,7 +16,7 @@
 # Usage:
 #   helm repo add camunda https://helm.camunda.io && helm repo update
 #   helm upgrade --install camunda-mgmt camunda/camunda-platform \
-#     --version 13.7.0 \
+#     --version 14.0.0 \
 #     --namespace management --create-namespace \
 #     -f values-management-cluster.yaml \
 #     -f ../values-local-tls.yaml  <--- only if installing locally and you want to access via camunda.example.com

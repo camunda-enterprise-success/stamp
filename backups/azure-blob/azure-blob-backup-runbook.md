@@ -1,8 +1,8 @@
-# Azure Blob Storage Backup Setup Runbook — Camunda 8.8 (Single Cluster)
+# Azure Blob Storage Backup Setup Runbook — Camunda 8.9 (Single Cluster)
 
 ## Overview
 
-This runbook covers how to configure Azure Blob Storage as the backup store for a Camunda 8.8 single-cluster deployment managed via Helm. It covers both the Zeebe partition backup store and the Elasticsearch snapshot repository used by the web applications (Operate, Tasklist) and Optimize.
+This runbook covers how to configure Azure Blob Storage as the backup store for a Camunda 8.9 single-cluster deployment managed via Helm. It covers both the Zeebe partition backup store and the Elasticsearch snapshot repository used by the web applications (Operate, Tasklist) and Optimize.
 
 > **Note:** Camunda 8.8 introduced breaking changes to the Operate and Tasklist backup flow. Ensure you are using the 8.8-compatible backup procedure if migrating from an earlier version.
 
@@ -10,7 +10,7 @@ This runbook covers how to configure Azure Blob Storage as the backup store for 
 
 ## Prerequisites
 
-- A running Camunda 8.8 single-cluster Helm deployment
+- A running Camunda 8.9 single-cluster Helm deployment
 - `kubectl` and `helm` CLI access to the cluster
 - An Azure Storage Account and Blob container for backups
 - An Azure account with permissions to create storage accounts and manage access keys
@@ -195,7 +195,7 @@ optimize:
 
 ```bash
 helm upgrade camunda camunda/camunda-platform \
-  --version 13.7.0 \
+  --version 14.0.0 \
   --namespace camunda \
   -f values-combined-cluster.yaml \
   -f azure-backups-values.yaml
@@ -225,8 +225,8 @@ curl "http://localhost:9600/actuator/backupRuntime/1"
 
 ## Reference
 
-- [Camunda 8.8 Backup & Restore docs](https://docs.camunda.io/docs/8.8/self-managed/operational-guides/backup-restore/backup-and-restore/)
-- [Camunda 8.8 Create a Backup](https://docs.camunda.io/docs/8.8/self-managed/operational-guides/backup-restore/backup/)
-- [Configure Helm chart components](https://docs.camunda.io/docs/8.8/self-managed/deployment/helm/configure/application-configs/)
-- [Optimize Backup API](https://docs.camunda.io/docs/self-managed/8.8/operational-guides/backup-restore/optimize-backup/)
+- [Camunda 8.9 Backup & Restore docs](https://docs.camunda.io/docs/8.9/self-managed/operational-guides/backup-restore/backup-and-restore/)
+- [Camunda 8.9 Create a Backup](https://docs.camunda.io/docs/8.9/self-managed/operational-guides/backup-restore/backup/)
+- [Configure Helm chart components](https://docs.camunda.io/docs/8.9/self-managed/deployment/helm/configure/application-configs/)
+- [Optimize Backup API](https://docs.camunda.io/docs/self-managed/8.9/operational-guides/backup-restore/optimize-backup/)
 - [Elasticsearch Azure repository plugin](https://www.elastic.co/guide/en/elasticsearch/plugins/current/repository-azure.html)

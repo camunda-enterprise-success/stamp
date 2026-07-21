@@ -1,8 +1,8 @@
-# GCS Backup Setup Runbook — Camunda 8.8 (Single Cluster, Google Cloud Storage)
+# GCS Backup Setup Runbook — Camunda 8.9 (Single Cluster, Google Cloud Storage)
 
 ## Overview
 
-This runbook covers how to configure Google Cloud Storage (GCS) as the backup store for a Camunda 8.8 single-cluster deployment managed via Helm. It covers both the Zeebe partition backup store and the Elasticsearch snapshot repository used by the web applications (Operate, Tasklist) and Optimize.
+This runbook covers how to configure Google Cloud Storage (GCS) as the backup store for a Camunda 8.9 single-cluster deployment managed via Helm. It covers both the Zeebe partition backup store and the Elasticsearch snapshot repository used by the web applications (Operate, Tasklist) and Optimize.
 
 > **Note:** Camunda 8.8 introduced breaking changes to the Operate and Tasklist backup flow. Ensure you are using the 8.8-compatible backup procedure if migrating from an earlier version.
 
@@ -10,7 +10,7 @@ This runbook covers how to configure Google Cloud Storage (GCS) as the backup st
 
 ## Prerequisites
 
-- A running Camunda 8.8 single-cluster Helm deployment
+- A running Camunda 8.9 single-cluster Helm deployment
 - `kubectl` and `helm` CLI access to the cluster
 - A GCS bucket for backups (or two separate buckets — see note below)
 - A GCP service account with read/write access to the GCS bucket(s)
@@ -194,7 +194,7 @@ optimize:
 
 ```bash
 helm upgrade camunda camunda/camunda-platform \
-  --version 13.7.0 \
+  --version 14.0.0 \
   --namespace camunda \
   -f values-combined-cluster.yaml \
   -f gcs-backups-values.yaml
@@ -224,9 +224,9 @@ curl "http://localhost:9600/actuator/backupRuntime/1"
 
 ## Reference
 
-- [Camunda 8.8 Backup & Restore docs](https://docs.camunda.io/docs/8.8/self-managed/operational-guides/backup-restore/backup-and-restore/)
-- [Camunda 8.8 Create a Backup](https://docs.camunda.io/docs/8.8/self-managed/operational-guides/backup-restore/backup/)
-- [Configure Helm chart components](https://docs.camunda.io/docs/8.8/self-managed/deployment/helm/configure/application-configs/)
-- [Optimize Backup API](https://docs.camunda.io/docs/8.8/self-managed/operational-guides/backup-restore/optimize-backup/)
+- [Camunda 8.9 Backup & Restore docs](https://docs.camunda.io/docs/8.9/self-managed/operational-guides/backup-restore/backup-and-restore/)
+- [Camunda 8.9 Create a Backup](https://docs.camunda.io/docs/8.9/self-managed/operational-guides/backup-restore/backup/)
+- [Configure Helm chart components](https://docs.camunda.io/docs/8.9/self-managed/deployment/helm/configure/application-configs/)
+- [Optimize Backup API](https://docs.camunda.io/docs/8.9/self-managed/operational-guides/backup-restore/optimize-backup/)
 - [Elasticsearch GCS Repository Plugin](https://www.elastic.co/guide/en/elasticsearch/plugins/current/repository-gcs.html)
 - [GCS Workload Identity for GKE](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity)

@@ -25,6 +25,14 @@ identity:
                 definition: write:*
               - resourceServerId: web-modeler-api
                 definition: write:*
+              - resourceServerId: web-modeler-public-api
+                definition: create:*
+              - resourceServerId: web-modeler-public-api
+                definition: read:*
+              - resourceServerId: web-modeler-public-api
+                definition: update:*
+              - resourceServerId: web-modeler-public-api
+                definition: delete:*
               - resourceServerId: console-api
                 definition: write:*
 

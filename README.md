@@ -1,6 +1,6 @@
 # STAMP — Structured Technical Account Manager Platform Setup
 
-STAMP is an opinionated, modular Helm values library for deploying and configuring **Camunda 8.8** in customer environments. It is designed to let TAMs quickly layer scenario-specific configurations on top of a tested baseline, rather than building values files from scratch each time.
+STAMP is an opinionated, modular Helm values library for deploying and configuring **Camunda 8.9** in customer environments. It is designed to let TAMs quickly layer scenario-specific configurations on top of a tested baseline, rather than building values files from scratch each time.
 
 > **Companion library:** STAMP is intended to be used alongside the official [camunda-deployment-references](https://github.com/camunda/camunda-deployment-references) repository. That repo provides reference architectures and IaC; STAMP provides TAM-focused overlays, runbooks, and scenario configurations that layer on top of those foundations.
 
@@ -13,7 +13,7 @@ stamp/
 ├── README.md
 │
 ├── base-values/                          # Starting point for every deployment
-│   ├── values-orchestration-cluster.yaml       # Core 1-node Camunda 8.8 values (basic auth)
+│   ├── values-orchestration-cluster.yaml       # Core 1-node Camunda 8.9 values (basic auth)
 │   ├── values-local-tls.yaml                   # mkcert CA trust overlay (local HTTPS)
 │   ├── camunda-credentials.yaml                # Credential references
 │   ├── !!!-operators/                          # 🚧 Operator configs
@@ -68,7 +68,7 @@ stamp/
 helm repo add camunda https://helm.camunda.io && helm repo update
 
 helm upgrade --install camunda camunda/camunda-platform \
-  --version 13.7.0 \
+  --version 14.0.0 \
   --namespace camunda --create-namespace \
   -f base-values/values-orchestration-cluster.yaml
 ```
@@ -82,14 +82,14 @@ Additional overlays are passed with `-f` flags in order, each overriding or exte
 ```bash
 # Local HTTPS with mkcert CA trust
 helm upgrade --install camunda camunda/camunda-platform \
-  --version 13.7.0 \
+  --version 14.0.0 \
   --namespace camunda --create-namespace \
   -f base-values/values-orchestration-cluster.yaml \
   -f base-values/values-local-tls.yaml
 
 # S3 backups
 helm upgrade --install camunda camunda/camunda-platform \
-  --version 13.7.0 \
+  --version 14.0.0 \
   --namespace camunda --create-namespace \
   -f base-values/values-orchestration-cluster.yaml \
   -f base-values/values-local-tls.yaml \

@@ -1,4 +1,4 @@
-# STAMP: Base values.yaml for Camunda 8.8 - Combined Cluster
+# STAMP: Base values.yaml for Camunda 8.9 - Combined Cluster
 # ============================================================
 # This is an opinionated 1-node starting point for a TAM-assisted
 # deployment of all Camunda components in a single cluster.
@@ -16,7 +16,7 @@
 # Usage:
 #   helm repo add camunda https://helm.camunda.io && helm repo update
 #   helm upgrade --install camunda camunda/camunda-platform \
-#     --version 13.7.0 \
+#     --version 14.0.0 \
 #     --namespace camunda --create-namespace \
 #     -f orchestration-and-management-cluster-values.yaml \
 #     -f ../values-local-tls.yaml  <--- only if installing locally and you want to access via camunda.example.com
@@ -161,6 +161,9 @@ orchestration:
   partitionCount: '1'
   replicationFactor: '1'
   pvcSize: 10Gi
+  data:
+    secondaryStorage:
+      type: "elasticsearch"
   resources:
     requests:
       cpu: 300m

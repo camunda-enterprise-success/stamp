@@ -1,9 +1,15 @@
 # Camunda 8 on Kind - Local Development
 # ======================================
 #
+# IMPORTANT: SECONDARY_STORAGE must be set before running init targets.
+#            There is no default value - you must choose one:
+#              - elasticsearch: Full platform with Optimize
+#              - postgres: RDBMS-only mode (lighter, no Optimize)
+#
 # Quick start:
-#   make domain.init        # Full setup with TLS (requires mkcert)
-#   make no-domain.init     # Full setup without TLS (port-forward)
+#   SECONDARY_STORAGE=postgres make domain.init      # PG-only with TLS (recommended)
+#   SECONDARY_STORAGE=postgres make no-domain.init   # PG-only with port-forward
+#   SECONDARY_STORAGE=elasticsearch make domain.init # Full platform with TLS
 #
 # Scripts in ./procedure/ can be run independently after sourcing environment.
 #
@@ -17,8 +23,9 @@ CLUSTER_NAME ?= camunda-platform-local
 CAMUNDA_NAMESPACE ?= camunda
 CAMUNDA_RELEASE_NAME ?= camunda
 CERT_DIR ?= .certs
+# SECONDARY_STORAGE has no default - must be explicitly set to 'elasticsearch' or 'postgres'
 
-export CLUSTER_NAME CAMUNDA_NAMESPACE CAMUNDA_RELEASE_NAME CERT_DIR
+export CLUSTER_NAME CAMUNDA_NAMESPACE CAMUNDA_RELEASE_NAME CERT_DIR SECONDARY_STORAGE
 
 # Paths
 PROCEDURE_DIR := ./procedure
@@ -31,16 +38,21 @@ PROCEDURE_DIR := ./procedure
 help:
 	@echo "Camunda 8 on Kind - Local Development"
 	@echo ""
-	@echo "Quick start:"
-	@echo "  make domain.init        # Full setup with TLS (requires mkcert)"
-	@echo "  make no-domain.init     # Full setup without TLS (port-forward)"
+	@echo "IMPORTANT: Set SECONDARY_STORAGE before running init targets."
+	@echo "           Valid values: elasticsearch, postgres"
 	@echo ""
-	@echo "Domain mode (TLS):"
-	@echo "  make domain.init        Full initialization"
+	@echo "Quick start (postgres, no Elasticsearch, no Optimize):"
+	@echo "  SECONDARY_STORAGE=postgres make domain.init      # With TLS (mkcert)"
+	@echo "  SECONDARY_STORAGE=postgres make no-domain.init   # With port-forward"
+	@echo ""
+	@echo "Quick start (elasticsearch — full platform with Optimize):"
+	@echo "  SECONDARY_STORAGE=elasticsearch make domain.init      # With TLS"
+	@echo "  SECONDARY_STORAGE=elasticsearch make no-domain.init   # With port-forward"
+	@echo ""
+	@echo "Main workflows:"
+	@echo "  make domain.init        Full initialization with TLS (requires SECONDARY_STORAGE)"
 	@echo "  make domain.clean       Full cleanup"
-	@echo ""
-	@echo "No-domain mode (port-forward):"
-	@echo "  make no-domain.init     Full initialization"
+	@echo "  make no-domain.init     Full initialization with port-forward (requires SECONDARY_STORAGE)"
 	@echo "  make no-domain.clean    Full cleanup"
 	@echo ""
 	@echo "Infrastructure only (bring your own Camunda values):"
@@ -48,36 +60,45 @@ help:
 	@echo "  make no-domain.infra    Setup infra without TLS (no Camunda)"
 	@echo ""
 	@echo "Individual commands:"
-	@echo "  make cluster.create     Create Kind cluster"
-	@echo "  make cluster.delete     Delete Kind cluster"
-	@echo "  make ingress.deploy     Deploy Ingress NGINX"
-	@echo "  make hosts.add          Add /etc/hosts entries (domain mode)"
-	@echo "  make hosts.add-keycloak Add Keycloak host entry (no-domain mode)"
-	@echo "  make hosts.remove       Remove /etc/hosts entries (domain mode)"
-	@echo "  make hosts.remove-keycloak Remove Keycloak host entry"
-	@echo "  make certs.generate     Generate TLS certificates"
-	@echo "  make camunda.deploy-domain     Deploy Camunda (domain)"
-	@echo "  make camunda.deploy-no-domain  Deploy Camunda (no-domain)"
-	@echo "  make camunda.wait       Wait for Camunda pods to be ready"
-	@echo "  make camunda.uninstall  Uninstall Camunda"
+	@echo "  make cluster.create           Create Kind cluster"
+	@echo "  make cluster.delete           Delete Kind cluster"
+	@echo "  make ingress.deploy           Deploy Contour ingress controller"
+	@echo "  make operators.deploy-domain       Deploy operators (domain mode)"
+	@echo "  make operators.deploy-no-domain    Deploy operators (no-domain mode)"
+	@echo "  make hosts.add                Add /etc/hosts entries (domain mode)"
+	@echo "  make hosts.add-keycloak       Add Keycloak host entry (no-domain mode)"
+	@echo "  make hosts.remove             Remove /etc/hosts entries (domain mode)"
+	@echo "  make hosts.remove-keycloak    Remove Keycloak host entry"
+	@echo "  make certs.generate           Generate TLS certificates"
+	@echo "  make identity-secrets.create  Create identity secrets"
+	@echo "  make camunda.deploy-domain    Deploy Camunda (domain mode)"
+	@echo "  make camunda.deploy-no-domain Deploy Camunda (no-domain mode)"
+	@echo "  make camunda.wait             Wait for Camunda pods to be ready"
+	@echo "  make camunda.uninstall        Uninstall Camunda"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  make status             Show cluster status"
 	@echo "  make port-forward       Start port-forwarding"
-	@echo "  make get-password       Get admin password"
+	@echo "  make get-password       Get Camunda admin password"
+	@echo "  make get-keycloak-password  Get Keycloak admin credentials"
 
 # =============================================================================
 # Full workflows
 # =============================================================================
 
 .PHONY: domain.init
-domain.init: cluster.create ingress.deploy coredns.config hosts.add certs.generate certs.create-secret certs.create-ca-configmap camunda.deploy-domain camunda.wait
+domain.init: cluster.create ingress.deploy coredns.config hosts.add certs.generate certs.create-secret certs.create-ca-configmap operators.deploy-domain identity-secrets.create camunda.deploy-domain camunda.wait
 	@( \
 		PASSWORD=$$($(PROCEDURE_DIR)/get-password.sh); \
 		echo ""; \
-		echo "✓ Domain setup complete!"; \
+		echo "✓ Domain setup complete! (secondary storage: $(SECONDARY_STORAGE))"; \
 		echo "  Access: https://camunda.example.com"; \
 		echo "  Credentials: admin / $$PASSWORD"; \
+		if [[ "$(SECONDARY_STORAGE)" == "postgres" ]]; then \
+			echo "  Note: Optimize is disabled in postgres mode"; \
+		fi; \
+		echo ""; \
+		echo "  Keycloak admin credentials: make get-keycloak-password"; \
 	)
 
 .PHONY: domain.clean
@@ -86,13 +107,18 @@ domain.clean: camunda.uninstall cluster.delete hosts.remove certs.clean
 	@echo "✓ Domain cleanup complete!"
 
 .PHONY: no-domain.init
-no-domain.init: cluster.create hosts.add-keycloak camunda.deploy-no-domain camunda.wait
+no-domain.init: cluster.create hosts.add-keycloak operators.deploy-no-domain identity-secrets.create camunda.deploy-no-domain camunda.wait
 	@( \
 		PASSWORD=$$($(PROCEDURE_DIR)/get-password.sh); \
 		echo ""; \
-		echo "✓ No-domain setup complete!"; \
+		echo "✓ No-domain setup complete! (secondary storage: $(SECONDARY_STORAGE))"; \
 		echo "  Run: make port-forward"; \
 		echo "  Credentials: admin / $$PASSWORD"; \
+		if [[ "$(SECONDARY_STORAGE)" == "postgres" ]]; then \
+			echo "  Note: Optimize is disabled in postgres mode"; \
+		fi; \
+		echo ""; \
+		echo "  Keycloak admin credentials: make get-keycloak-password"; \
 	)
 
 # Infrastructure only (no Camunda) — bring your own values.yaml
@@ -135,12 +161,24 @@ cluster.delete:
 	@kind delete cluster --name $(CLUSTER_NAME)
 
 # =============================================================================
+# Operators (Elasticsearch, PostgreSQL, Keycloak)
+# =============================================================================
+
+.PHONY: operators.deploy-domain
+operators.deploy-domain:
+	@CAMUNDA_MODE=domain $(PROCEDURE_DIR)/operators-deploy.sh
+
+.PHONY: operators.deploy-no-domain
+operators.deploy-no-domain:
+	@CAMUNDA_MODE=no-domain $(PROCEDURE_DIR)/operators-deploy.sh
+
+# =============================================================================
 # Infrastructure
 # =============================================================================
 
 .PHONY: ingress.deploy
 ingress.deploy:
-	@$(PROCEDURE_DIR)/ingress-nginx-deploy.sh
+	@$(PROCEDURE_DIR)/contour-deploy.sh
 
 .PHONY: coredns.config
 coredns.config:
@@ -157,9 +195,9 @@ hosts.add:
 .PHONY: hosts.add-keycloak
 hosts.add-keycloak:
 	@echo "Adding Keycloak host entry (requires sudo)..."
-	@if ! grep -q "$(CAMUNDA_RELEASE_NAME)-keycloak" /etc/hosts; then \
-		echo "127.0.0.1  $(CAMUNDA_RELEASE_NAME)-keycloak" | sudo tee -a /etc/hosts > /dev/null; \
-		echo "Added: 127.0.0.1  $(CAMUNDA_RELEASE_NAME)-keycloak"; \
+	@if ! grep -q "^127\.0\.0\.1[[:space:]]\{1,\}keycloak-service$$" /etc/hosts; then \
+		echo "127.0.0.1  keycloak-service" | sudo tee -a /etc/hosts > /dev/null; \
+		echo "Added: 127.0.0.1  keycloak-service"; \
 	else \
 		echo "Host entry already exists."; \
 	fi
@@ -178,9 +216,9 @@ hosts.remove:
 hosts.remove-keycloak:
 	@echo "Removing Keycloak host entry (requires sudo)..."
 	@if [[ "$$(uname)" == "Darwin" ]]; then \
-		sudo sed -i '' '/$(CAMUNDA_RELEASE_NAME)-keycloak/d' /etc/hosts; \
+		sudo sed -i '' '/^127\.0\.0\.1[[:space:]]\{1,\}keycloak-service$$/d' /etc/hosts; \
 	else \
-		sudo sed -i '/$(CAMUNDA_RELEASE_NAME)-keycloak/d' /etc/hosts; \
+		sudo sed -i '/^127\.0\.0\.1[[:space:]]\{1,\}keycloak-service$$/d' /etc/hosts; \
 	fi
 	@echo "Keycloak host entry removed."
 
@@ -209,6 +247,14 @@ certs.create-ca-configmap:
 certs.clean:
 	@rm -rf $(CERT_DIR)
 	@echo "Certificates cleaned."
+
+# =============================================================================
+# Identity Secrets
+# =============================================================================
+
+.PHONY: identity-secrets.create
+identity-secrets.create:
+	@$(PROCEDURE_DIR)/create-identity-secrets.sh
 
 # =============================================================================
 # Camunda
@@ -251,3 +297,7 @@ port-forward:
 .PHONY: get-password
 get-password:
 	@$(PROCEDURE_DIR)/get-password.sh
+
+.PHONY: get-keycloak-password
+get-keycloak-password:
+	@$(PROCEDURE_DIR)/get-keycloak-password.sh
