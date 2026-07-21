@@ -1,7 +1,7 @@
 # STAMP: Base values.yaml for Camunda 8.9
 # ============================================================
-# This is an opinionated 1-node starting point for a TAM-assisted
-# deployment. Please update the relevant sizing section in orchestration section if desired.
+# This is an opinionated 3-node starting point for a TAM-assisted
+# deployment (3 brokers, 3 partitions, replication factor 3). Please update the relevant sizing section in orchestration section if desired.
 #
 # Uses basic auth, login with:
 #  user: demo
@@ -52,9 +52,9 @@ orchestration:
         secretName: camunda-platform
 
   # Orchestration Cluster sizing (must be strings, in double quotes)
-  clusterSize: "1"
-  partitionCount: "1"
-  replicationFactor: "1"
+  clusterSize: "3"
+  partitionCount: "3"
+  replicationFactor: "3"
   pvcSize: 10Gi
   data:
     secondaryStorage:

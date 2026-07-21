@@ -85,9 +85,9 @@ optimize:
 
 # Reduce Zeebe resources for local development
 orchestration:
-    clusterSize: '1'
-    partitionCount: '1'
-    replicationFactor: '1'
+    clusterSize: '3'
+    partitionCount: '3'
+    replicationFactor: '3'
     pvcSize: 10Gi
     resources:
         requests:
