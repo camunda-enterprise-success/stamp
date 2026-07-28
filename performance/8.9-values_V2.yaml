@@ -1,0 +1,197 @@
+# =====================================================================
+# Camunda 8.9 — values.yaml
+# Helm chart: camunda/camunda-platform (chart version 13.x → app 8.9.x)
+# Topology  : External Keycloak (GENERIC OIDC) | OC + Identity + Optimize + Console
+#             | Internal PG for Identity
+# =====================================================================
+
+global:
+  elasticsearch:
+    enabled: true
+  # ---- OIDC / external Keycloak -------------------------------------
+  identity:
+    auth:
+      enabled: true
+      type: "GENERIC"
+      # Reachable from the user's browser AND in-cluster (single URL works for camunda.cloud).
+      publicIssuerUrl:  https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc
+      issuerBackendUrl: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc
+      authUrl:          https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc/protocol/openid-connect/auth
+      tokenUrl:         https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc/protocol/openid-connect/token
+      jwksUrl:          https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc/protocol/openid-connect/certs
+
+      # ---- Management Identity client -------------------------------
+      identity:
+        clientId: mgmt-identity-client
+        audience: mgmt-identity-client
+        secret:
+          existingSecret: "jens-keycloak-client-secrets"
+          existingSecretKey: "mgmt-identity-secret"
+        issuer:           https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc
+        issuerBackendUrl: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc
+        tokenUrl:         https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc/protocol/openid-connect/token
+        jwksUrl:          https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc/protocol/openid-connect/certs
+        publicIssuerUrl:  https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc
+        type: "GENERIC"
+#        redirectUrl: "http://localhost:8084"
+        # First-login bootstrap: this user becomes the initial Identity admin.
+        # Persisted in Postgres on first start — cannot be changed via Helm afterwards.
+        initialClaimName:  preferred_username
+        initialClaimValue: jens-admin
+        clientIdClaim: client_id
+        usernameClaim: preferred_username
+        groupsClaim: groups
+
+      # ---- Optimize client ------------------------------------------
+      optimize:
+        clientId: optimize-client
+        audience: optimize-client
+        redirectUrl: http://localhost:8083
+        secret:
+          existingSecret: "jens-keycloak-client-secrets"
+          existingSecretKey: "optimize-secret"
+
+      # ---- Console client (public/SPA in Keycloak) ------------------
+      console:
+        clientId: console-client
+        audience: console-client
+        redirectUrl: http://localhost:8087/
+        secret:
+          existingSecret: "jens-keycloak-client-secrets"
+          existingSecretKey: "console-secret"
+
+  # ---- Platform-wide auth method ------------------------------------
+  security:
+    authentication:
+      method: oidc
+
+# =====================================================================
+# Disable bundled Keycloak (we connect to an external one)
+# =====================================================================
+identityKeycloak:
+  enabled: false
+
+# =====================================================================
+# Management Identity
+# (No firstUser / env block needed — type=GENERIC + initialClaimValue
+#  handle bootstrap via the external IdP.)
+# =====================================================================
+identity:
+  enabled: true
+
+# =====================================================================
+# Bundled PostgreSQL for Management Identity (chart sub-chart)
+# =====================================================================
+identityPostgresql:
+  enabled: true
+  auth:
+    existingSecret: camunda-credentials
+    secretKeys:
+      adminPasswordKey: identity-postgresql-admin-password
+      userPasswordKey:  identity-postgresql-user-password
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+
+# =====================================================================
+# Orchestration Cluster (Zeebe brokers + Operate + Tasklist)
+# 3 brokers, 12 partitions, replicationFactor 3
+# =====================================================================
+orchestration:
+  enabled: true
+  exporters:
+    zeebe:
+      enabled: true
+  clusterSize:       "6"
+  partitionCount:    "60"
+  replicationFactor: "3"
+  cpuThreadCount: "14"
+  ioThreadCount: "28"
+  resources:
+    requests:
+      cpu: "14"
+      memory: 48Gi
+    limits:
+      cpu: "14"
+      memory: 48Gi
+  persistenceType: disk
+  pvcSize: 60Gi
+  data:
+    secondaryStorage:
+      type: "elasticsearch"
+  security:
+    initialization:
+      defaultRoles:
+        admin:
+          users:
+            - "jens-admin"
+    authentication:
+      method: oidc
+      oidc:
+        clientId: oc-client
+        audience: oc-client
+        secret:
+          existingSecret: "jens-keycloak-client-secrets"
+          existingSecretKey: "oc-secret"
+        issuer:           https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc
+        issuerBackendUrl: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc
+        tokenUrl:         https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc/protocol/openid-connect/token
+        jwksUrl:          https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc/protocol/openid-connect/certs
+        publicIssuerUrl:  https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc
+        type: "GENERIC"
+        redirectUrl: "http://localhost:8080/"
+        clientIdClaim: client_id
+        usernameClaim: preferred_username
+        groupsClaim: groups
+        scope:
+          - openid
+          - profile
+          - offline_access
+
+  env:
+    - name: CAMUNDA_MONITORING_METRICS_ENABLEEXPORTEREXECUTIONMETRICS
+      value: "true"
+
+# =====================================================================
+# Optimize
+# =====================================================================
+optimize:
+  enabled: true
+#  contextPath: /optimize
+
+# =====================================================================
+# Console
+# =====================================================================
+console:
+  enabled: true
+
+# =====================================================================
+# Components NOT requested — explicitly off (flip on when needed)
+# =====================================================================
+connectors:
+  enabled: false
+webModeler:
+  enabled: false
+webModelerPostgresql:
+  enabled: false
+
+# =====================================================================
+# Secondary store for Orchestration Cluster + Optimize
+# Keep the in-chart Elasticsearch for now; swap to OpenSearch/external ES
+# in production by following the database guide.
+# =====================================================================
+elasticsearch:
+  enabled: true
+  master:
+    replicaCount: 3
+    resources:
+      requests:
+        cpu: "6000m"
+        memory: "12Gi"
+      limits:
+        cpu: "6000m"
+        memory: "14Gi"
+
+prometheusServiceMonitor:
+  enabled: true

@@ -1,0 +1,57 @@
+# Zeebe primary-storage RESTORE overlay - the Camunda-side half of the restore procedure.
+# Layered ON TOP of ./minimal_setup.yaml (which supplies the RDBMS secondary-storage wiring
+# and disables every other component):
+#
+#   helm upgrade --install camunda camunda-platform --repo https://helm.camunda.io \
+#     --version 14.7.0 --namespace camunda \
+#     -f ./minimal_setup.yaml \
+#     -f ./values_to_restore_oc.yml
+#
+# Prerequisites (see the README Restore section): the Postgres database has ALREADY been
+# recovered from Barman (backup/restore/postgresql-cluster-restore.yaml), and Zeebe's PVC is empty. The
+# restore container reads the exporter position from the recovered RDBMS, finds the matching
+# primary-storage backup in MinIO, and rebuilds Zeebe's local state from it.
+#
+# The restore container exits when done; Kubernetes then reports CrashLoopBackOff on the pod -
+# that is EXPECTED. Check `kubectl logs <pod> --previous` for "Successfully restored broker
+# from backup", then redeploy with the normal values (README step) to return to service.
+
+orchestration:
+  env:
+    - name: ZEEBE_BROKER_EXECUTION_METRICS_EXPORTER_ENABLED
+      value: "true"
+
+    # Turn the orchestration pod into a restore run.
+    - name: SPRING_PROFILES_ACTIVE
+      value: "restore"
+    - name: ZEEBE_RESTORE
+      value: "true"
+
+    # Optional point-in-time restore - restore up to a specific instant instead of the latest
+    # backup. Must not precede the recovered RDBMS state. Uncomment and set as needed:
+    # - name: ZEEBE_RESTORE_TO_TIMESTAMP
+    #   value: "2026-07-27T14:00:00Z"
+
+    # --- Same MinIO primary-storage backup source as values_with_backup_restore.yml ---
+    - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_STORE
+      value: "S3"
+    - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_BUCKETNAME
+      value: "camunda-backups"
+    - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_BASEPATH
+      value: "oc-runtime"
+    - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_ENDPOINT
+      value: "http://minio.minio.svc.cluster.local:9000"
+    - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_REGION
+      value: "eu-central-1"
+    - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_FORCEPATHSTYLEACCESS
+      value: "true"
+    - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_ACCESSKEY
+      valueFrom:
+        secretKeyRef:
+          name: minio-credentials
+          key: ACCESS_KEY_ID
+    - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_SECRETKEY
+      valueFrom:
+        secretKeyRef:
+          name: minio-credentials
+          key: ACCESS_SECRET_KEY

@@ -1,0 +1,107 @@
+global:
+  elasticsearch:
+    enabled: true
+
+  # ---- Platform-wide auth method ------------------------------------
+  security:
+    authentication:
+      method: basic
+
+# =====================================================================
+# Disable bundled Keycloak (we connect to an external one)
+# =====================================================================
+identityKeycloak:
+  enabled: false
+
+# =====================================================================
+# Management Identity
+# (No firstUser / env block needed — type=GENERIC + initialClaimValue
+#  handle bootstrap via the external IdP.)
+# =====================================================================
+identity:
+  enabled: false
+
+# =====================================================================
+# Bundled PostgreSQL for Management Identity (chart sub-chart)
+# =====================================================================
+identityPostgresql:
+  enabled: false
+
+# =====================================================================
+# Orchestration Cluster (Zeebe brokers + Operate + Tasklist)
+# 3 brokers, 12 partitions, replicationFactor 3
+# =====================================================================
+orchestration:
+  security:
+    authentication:
+      method: "basic"
+      unprotectedApi: true
+    authorizations:
+      enabled: false
+  enabled: true
+  exporters:
+    zeebe:
+      enabled: true
+  clusterSize:       "3"
+  partitionCount:    "24"
+  replicationFactor: "3"
+  cpuThreadCount: "6"
+  ioThreadCount: "12"
+  resources:
+    requests:
+      cpu: "3"
+      memory: 14Gi
+    limits:
+      cpu: "3"
+      memory: 14Gi
+  persistenceType: disk
+  pvcSize: 60Gi
+  data:
+    secondaryStorage:
+      type: "elasticsearch"
+  env:
+    - name: CAMUNDA_MONITORING_METRICS_ENABLEEXPORTEREXECUTIONMETRICS
+      value: "true"
+
+# =====================================================================
+# Optimize
+# =====================================================================
+optimize:
+  enabled: false
+#  contextPath: /optimize
+
+# =====================================================================
+# Console
+# =====================================================================
+console:
+  enabled: false
+
+# =====================================================================
+# Components NOT requested — explicitly off (flip on when needed)
+# =====================================================================
+connectors:
+  enabled: false
+webModeler:
+  enabled: false
+webModelerPostgresql:
+  enabled: false
+
+# =====================================================================
+# Secondary store for Orchestration Cluster + Optimize
+# Keep the in-chart Elasticsearch for now; swap to OpenSearch/external ES
+# in production by following the database guide.
+# =====================================================================
+elasticsearch:
+  enabled: true
+  master:
+    replicaCount: 3
+    resources:
+      requests:
+        cpu: "3000m"
+        memory: "12Gi"
+      limits:
+        cpu: "3000m"
+        memory: "12Gi"
+
+prometheusServiceMonitor:
+  enabled: true

@@ -1,0 +1,35 @@
+# Hourly Postgres (secondary storage) backup via CloudNativePG's ScheduledBackup, writing to
+# the MinIO Barman object store configured on the pg-camunda Cluster
+# (../postgresql/postgresql-cluster.yaml spec.backup). This is the RDBMS half of the hourly backup; the
+# Zeebe primary-storage half runs on its own hourly schedule via
+# CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_SCHEDULE in ../values_with_backup_restore.yml.
+#
+# The two schedules are deliberately staggered, not simultaneous: this one fires at :00, the
+# Zeebe one at :10 (10 minutes later). Restore requires
+#   Zeebe primary-storage backup position >= RDBMS exporter position
+# (see the README's "Backup / restore coordination" section) - taking the RDBMS backup first
+# and giving it a head start means the Zeebe backup, once it runs, reflects a log state that's
+# strictly newer than what Postgres captured. Both `schedule` fields here are genuine CRON
+# expressions (6-field, seconds-leading), not the ISO-8601 duration form
+# (CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_SCHEDULE also accepts e.g. "PT1H") - cron is wall-clock
+# anchored, so the 10-minute offset holds every cycle regardless of pod restarts, unlike a
+# fixed-interval duration timer with no minute-of-hour anchor. On a low-data/test cluster where
+# each backup finishes in seconds, 10 minutes is a comfortable margin; widen it if backups here
+# ever take long enough to eat into that gap.
+#
+# Apply after the Camunda install is up and pg-camunda is Ready (from installation/):
+#   kubectl apply -f ./backup/scheduled-backup.yaml
+
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: pg-camunda-hourly
+  namespace: postgres
+spec:
+  # CNPG uses a SIX-field cron expression (the leading field is SECONDS, unlike Unix crontab).
+  # "0 0 * * * *" = at second 0, minute 0, every hour - 10 minutes before the Zeebe schedule.
+  schedule: "0 0 * * * *"
+  backupOwnerReference: self
+  cluster:
+    name: pg-camunda
+  method: barmanObjectStore

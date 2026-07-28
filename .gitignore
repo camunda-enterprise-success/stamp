@@ -195,3 +195,4 @@ $RECYCLE.BIN/
 **/.cert/
 /job-worker/target/
 *.*.secret
+.idea

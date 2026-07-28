@@ -1,115 +1,207 @@
 # Full Camunda Installation with Monitoring and Backup
 
-This guide walks through deploying a full Camunda 8 stack including Prometheus/Grafana monitoring, OIDC-based permissions, and S3-backed backup/restore. It is designed to be run in a local Kubernetes cluster (e.g. kind) and gives you hands-on experience with platform capabilities TAM needs to be able to set up or troubleshoot in a customer environment.
+This guide walks through deploying a full Camunda 8 stack — Prometheus/Grafana monitoring, OIDC-based permissions, and scheduled backup/restore 
+— on a local Kubernetes cluster (e.g. kind). 
+It provides hands-on experience with the platform capabilities to set up or troubleshoot an environment.
+
+Everything here is deployed **into the same local cluster** for convenience, but nothing is **bundled with the Camunda platform**:
+
+- **Secondary storage is PostgreSQL (RDBMS)**, provisioned in-cluster via the **CloudNativePG (CNPG) operator** — This first version does **not** include Optimize (the one component that still needs Elasticsearch).
+- **Authentication is an in-cluster Keycloak**, deployed via the official **Keycloak operator**.
+- **Backups go to a local MinIO** object store. Both backup halves land in one bucket: the Zeebe runtime (primary storage) and the PostgreSQL secondary storage (via CNPG Barman).
+
+> Targets **Camunda 8.9** via Helm chart `camunda-platform` **14.7.0**. 
+> Chart 14.x deprecates the bundled Bitnami Elasticsearch/Keycloak subcharts (removed in 8.10) 
+> — this guide uses the operator-based replacements instead, following Camunda's [migration-from-bitnami](https://docs.camunda.io/docs/self-managed/deployment/helm/operational-tasks/migration-from-bitnami/) guidance.
+
+## Design Intent
+
+This directory demonstrates two things about a Camunda 8.9 installation, on top of the walkthrough itself:
+
+1. **It's built up iteratively, one capability at a time.** `minimal_setup.yaml` on its own is already a complete, working orchestration cluster — single node, RDBMS secondary storage, basic auth. Each further values file (`with_permissions.yaml`, `with_monitoring_alerting.yaml`, `values_with_backup_restore.yml`) is an *additive layer* on top of it, composed via extra `-f` flags. You can stop after any layer and have a working cluster; you don't need permissions to get monitoring, or monitoring to get backups. The [Installation](#installation) walkthrough below applies all of them together for convenience, but each layer is independently understandable — see the `Layer` column in the [Architecture Overview](#architecture-overview) table, and that values file's own header comment, for what each one adds on its own.
+2. **PostgreSQL, the OIDC provider, backup storage, and monitoring are external dependencies — not part of the core Camunda platform.** The `camunda-platform` Helm chart never deploys or owns any of them; it is only ever *configured to talk to* them (a JDBC URL, an issuer URL, an S3 endpoint, a scrape target). This guide happens to run all four in-cluster via operators/plain manifests, which is a local/dev convenience — in a real deployment they'd typically be a managed database (RDS/CloudSQL), a corporate IdP (Entra ID, Okta, Auth0, ...), cloud object storage (S3/GCS), and a hosted observability stack instead. Swapping any of them out only ever changes endpoints and credentials, never the shape of the Camunda values files.
+
+## Contents
+
+- [Design Intent](#design-intent)
+- [Architecture Overview](#architecture-overview)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation) — [01](#01-install-prometheusgrafana) [02](#02-install-minio) [03](#03-install-postgresql) [04](#04-install-keycloak) [05](#05-create-realm-clients-and-users) [06](#06-install-camunda) [07](#07-create-some-data) [08](#08-enable-scheduled-backups)
+- [Accessing the UIs](#accessing-the-uis)
+- [Manual Backup](#manual-backup)
+- [Restore](#restore)
+- [Reset](#reset)
+- [Other files in this directory](#other-files-in-this-directory)
+- [Notes / caveats](#notes--caveats)
 
 ## Architecture Overview
 
-The deployment is built from **layered Helm values files**. Each file adds one concern on top of the previous:
+The deployment is built from **layered Helm values files** (composed with multiple `-f` flags — Helm merges them in order, later files win) 
+plus a few resources applied directly with `kubectl` to provision dependencies. 
+The Helm values-file slices for the `camunda-platform` chart itself stay flat at the top of this directory 
+(they're all composed together in one `-f ... -f ...` command anyway).
 
-| Values file | What it adds |
-|------------|-------------|
-| `minimal_setup.yaml` | Base orchestration config — single node, basic auth, minimal resources |
-| `with_permissions.yaml` | OIDC integration with external Keycloak; roles, mapping rules, authorizations |
-| `with_monitoring_alerting.yaml` | Enables Prometheus metrics scraping on Zeebe |
-| `values_with_backup_restore.yml` | S3 backup config for Zeebe runtime and Elasticsearch history |
+"External" components manifests/scripts live in their own subdirectory: `postgresql/`, `keycloak/`, `monitoring/`, `backup/` (+ `backup/restore/`).
 
-This layering means you can swap out individual concerns (e.g. replace `with_permissions.yaml` with a different auth setup) without touching the others.
+`Kind` distinguishes systems the `camunda-platform` chart is merely *configured to talk to* ("External dependency") from the chart's own values-file layers ("Camunda platform"). `Layer` numbers the four root `-f` values files in the order they're additively composed (see [Design Intent](#design-intent)); an external dependency's `Layer` is the first one that needs it.
+
+| Concern                      | Kind                 | Layer            | How                                                                                         | Namespace             | File(s)                                                                   |
+|------------------------------|----------------------|------------------|---------------------------------------------------------------------------------------------|-----------------------|----------------------------------------------------------------------------|
+| Secondary storage            | External dependency  | 1 (base)         | PostgreSQL via CNPG operator (shared by Camunda + Keycloak)                                 | `postgres`            | `postgresql/postgresql-cluster.yaml`                                      |
+| Base orchestration           | Camunda platform     | 1 (base)         | Single node, RDBMS secondary storage, basic auth                                            | `camunda`             | `minimal_setup.yaml`                                                      |
+| Authentication               | External dependency  | 2 (+permissions) | Keycloak via Keycloak operator; realm/clients/users scripted                                | `keycloak`            | `keycloak/keycloak-instance.yaml`, `keycloak/create-realm-and-clients.sh` |
+| OIDC permissions             | Camunda platform     | 2 (+permissions) | Switches auth to OIDC against the in-cluster Keycloak; roles, mapping rules, authorizations | `camunda`             | `with_permissions.yaml`                                                   |
+| Monitoring                   | Camunda platform     | 3 (+monitoring)  | Prometheus scraping on Zeebe                                                                | `camunda` / `default` | `with_monitoring_alerting.yaml`                                           |
+| Object store (backups)       | External dependency  | 4 (+backup)      | Local MinIO, bucket `camunda-backups`                                                       | `minio`               | `backup/minio.yaml`                                                       |
+| Backup (Zeebe runtime)       | Camunda platform     | 4 (+backup)      | Primary-storage backup → MinIO, continuous + hourly cron at `:10`                           | `camunda`             | `values_with_backup_restore.yml`                                          |
+| Backup (PostgreSQL)          | External dependency  | 4 (+backup)      | CNPG ScheduledBackup (Barman) → MinIO, hourly cron at `:00` (10 min before the Zeebe side)  | `postgres`            | `backup/scheduled-backup.yaml`                                            |
+| Chart-consumed secret copies | Camunda platform     | 1–4 (all)        | RDBMS + MinIO credentials for the Camunda release                                           | `camunda`             | `camunda-secrets.yaml`                                                    |
+
+**Each external dependency runs in its own namespace** (`minio`, `postgres`, `keycloak`). 
+The Camunda platform release is alone in `camunda`. Cross-namespace wiring uses fully-qualified Service DNS:
+
+- Camunda + Keycloak → Postgres: `pg-camunda-rw.postgres.svc.cluster.local:5432`
+- Camunda + Postgres(Barman) → MinIO: `http://minio.minio.svc.cluster.local:9000`
+- Camunda → Keycloak (OIDC): `keycloak-service.keycloak.svc.cluster.local:18080`
+
+Two databases live on the one shared CNPG instance `pg-camunda`: `camunda` (orchestration secondary storage) and `keycloak`. 
+Because Kubernetes Secrets are namespace-scoped, shared credentials are duplicated into each consuming namespace 
+(e.g. `minio-credentials` exists in `minio`, `postgres`, and `camunda`).
 
 ## Prerequisites
 
 Tools required locally:
 
-- `helm` — package manager for Kubernetes
-- `kubectl` (aliased as `k`) — Kubernetes CLI
-- `kubens` — namespace switcher (from the `kubectx` package)
-- `curl` and `jq` — used by the utility scripts to fetch tokens and call APIs
+- `helm`, `kubectl` (aliased as `k`), `kubens` (from `kubectx`)
+- `c8ctl` — used by the utility scripts under `../utils/` to deploy BPMN and create process instances
+- Cluster-admin rights (the CNPG and Keycloak operators are cluster-scoped)
+- Ability to add an `/etc/hosts` entry on the machine you browse from (for Keycloak login, since port-forwarding is used)
 
 A running Kubernetes cluster. Locally, create one via:
 
 ```bash
-make cluster.create   # from local/kubernetes/kind-single-region/
+make cluster.create   # from deployment-references-repo/local/kubernetes/kind-single-region/
 ```
 
-## S3 Bucket Setup
+Install the two operators once per cluster (versions pinned to match the images in the manifests — check for current versions before production):
 
-Set up the following bucket structure in your object storage before deploying:
+```bash
+# CloudNativePG operator
+CNPG_VERSION=1.30.0
+kubectl apply --server-side -f \
+  "https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-${CNPG_VERSION%.*}/releases/cnpg-${CNPG_VERSION}.yaml"
+kubectl rollout status deployment/cnpg-controller-manager -n cnpg-system --timeout=300s
 
+# Keycloak operator (CRDs + controller). Runs in the "keycloak" namespace.
+KEYCLOAK_VERSION=26.3.2
+kubectl create namespace keycloak
+kubectl apply --server-side -f \
+  "https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/${KEYCLOAK_VERSION}/kubernetes/keycloaks.k8s.keycloak.org-v1.yml"
+kubectl apply --server-side -f \
+  "https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/${KEYCLOAK_VERSION}/kubernetes/keycloakrealmimports.k8s.keycloak.org-v1.yml"
+kubectl apply -n keycloak --server-side -f \
+  "https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/${KEYCLOAK_VERSION}/kubernetes/kubernetes.yml"
+kubectl wait --for=condition=available --timeout=300s deployment/keycloak-operator -n keycloak
 ```
-s3://your-backup-bucket/
-├── web-apps-indices/        ← Elasticsearch history snapshots (Operate, Tasklist data)
-└── oc-runtime/              ← Zeebe runtime backups (in-flight process instances)
-```
 
-These two paths are kept separate because they use different backup mechanisms:
-- **`oc-runtime`**: Zeebe's native backup API, which pauses exporting and snapshots the Raft log.
-- **`web-apps-indices`**: Elasticsearch snapshot API, which captures the index state used by Operate, Tasklist, and Optimize.
-
-> After creating your bucket, update all references to the bucket name and paths in the values and job YAML files. A find/replace on the example bucket name is the quickest approach.
+- `camunda` namespace is created from `cluster.create`.
+- `minio` and `postgres` namespaces are created by their own manifests in steps 02/03.
+- `keycloak` was created above.
 
 ---
 
 # Installation
 
-*(Run all commands from the `installation/` directory)* 
+Run every command from `enablement/installation/`.
 
 ## 01 Install Prometheus/Grafana
 
-Monitoring is installed first so that Prometheus is ready to scrape metrics as soon as Camunda starts. The `kube-prometheus-stack` chart installs Prometheus, Grafana, AlertManager, and the Prometheus Operator (which manages `ServiceMonitor` resources) in a single release.
+Monitoring first, so Prometheus is ready to scrape as soon as Camunda starts. 
+The `kube-prometheus-stack` chart installs Prometheus, Grafana, AlertManager, and the Prometheus Operator into the `default` namespace.
 
-**Before running:** create `monitoring_alerting/grafana-secret.yaml.secret` by copying `grafana-secret.yaml.template` and filling in your admin credentials. Gmail credentials are only needed if you want alert emails.
+**Before running:** create `monitoring/grafana-secret.yaml.secret` by copying `grafana-secret.yaml.template` and filling in your admin credentials (Gmail credentials only needed for alert emails).
 
 ```bash
-# Load the Grafana alert rules into a ConfigMap so Grafana can provision them on startup
 kubectl create configmap grafana-alerts \
-  --from-file=monitoring_alerting/camunda-alerts-grafana-managed.yaml \
+  --from-file=./monitoring/camunda-alerts-grafana-managed.yaml \
   -n default
 
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo add stable https://charts.helm.sh/stable
-helm repo update prometheus-community stable
+helm repo update prometheus-community
 
-# Apply the secret containing Grafana admin credentials
-kubectl apply -f ./monitoring_alerting/grafana-secret.yaml.secret -n default
+kubectl apply -f ./monitoring/grafana-secret.yaml.secret -n default
 
-# Install the full monitoring stack
 helm install metrics prometheus-community/kube-prometheus-stack \
   --wait --atomic \
-  -f ./monitoring_alerting/prometheus-operator-values.yaml \
+  -f ./monitoring/prometheus-operator-values.yaml \
   --set prometheusOperator.tlsProxy.enabled=false \
   --namespace default
 ```
 
-`--wait --atomic` ensures the command blocks until all pods are running. If any pod fails, Helm rolls back automatically.
+> The alert bundle still includes some Elasticsearch-specific rules that no longer apply to this RDBMS-based setup — they're harmless (nothing emits those metrics) and can be ignored or trimmed.
 
-## 02 Prepare Secrets
+## 02 Install MinIO
 
-Camunda needs two sets of credentials stored as Kubernetes Secrets before the Helm install can succeed:
-
-- **Keycloak OIDC client secrets** (`permissions/create-secrets.sh`): The OIDC clients (Identity, Operate, Tasklist, etc.) authenticate to Keycloak using client credentials. These secrets must match what is configured in Keycloak. Those are checked-in to git.
-- **S3 credentials** (`backup_restore/create-secrets.sh`): Used by Zeebe and Elasticsearch to write backups to S3.
-
-**Before running:** create `backup_restore/secrets.env.secret` from the template and fill in your S3 access key and secret key.
+The local object store all backups are written to (in its own `minio` namespace). The manifest creates the `minio` namespace, a Deployment + Service, a PVC, the `minio-credentials` secret, and a Job that creates the `camunda-backups` bucket.
 
 ```bash
-kubectl create ns camunda
-kubens camunda
-cd permissions && ./create-secrets.sh && cd ..
-cd backup_restore && ./create-secrets.sh && cd ..
+kubectl apply -f ./backup/minio.yaml
+kubectl rollout status deployment/minio -n minio --timeout=180s
+kubectl logs -n minio -l job-name=minio-create-bucket
 ```
 
-> TODO: Replace the consulting Keycloak with a locally deployed or commonly accessible instance so this works independently of the sandbox environment.
+## 03 Install PostgreSQL
 
-## 03 Install Camunda
+One CNPG `Cluster` (`pg-camunda`, single instance) in its own `postgres` namespace, bootstrapped with the `camunda` database, plus a `Database` CR adding Keycloak's `keycloak` database on the same instance. Its `spec.backup` points Barman at MinIO for the PostgreSQL backups. The manifest creates the `postgres` namespace and the credential secrets it needs.
 
-The four `-f` flags compose the full configuration. Helm merges them in order — later files override earlier ones for any overlapping keys.
+```bash
+kubectl apply -f ./postgresql/postgresql-cluster.yaml
+kubectl wait --for=condition=Ready --timeout=600s cluster/pg-camunda -n postgres
+```
 
-### With auth etc.
+## 04 Install Keycloak
+
+The Keycloak Custom Resource — single instance, no Ingress, backed by the `keycloak` database from step 03. Admin credentials (`admin`/`admin`) are passed in via `bootstrapAdmin`.
+
+```bash
+kubectl apply -f ./keycloak/keycloak-instance.yaml
+kubectl wait --for=condition=Ready --timeout=600s keycloak/keycloak -n keycloak
+```
+
+**Accessing Keycloak locally.** The instance fixes its hostname to the cluster-DNS name so the token `iss` claim is identical for in-cluster pods and your browser. Add a loopback entry once, then port-forward when you need it:
+
+```bash
+echo "127.0.0.1 keycloak-service.keycloak.svc.cluster.local" | sudo tee -a /etc/hosts
+kubectl port-forward svc/keycloak-service 18080:18080 -n keycloak
+```
+
+Admin console: http://keycloak-service.keycloak.svc.cluster.local:18080/auth/
+
+## 05 Create Realm, Clients, and Users
+
+Scripted via `kcadm.sh` inside the Keycloak pod (`kubectl exec`, no port-forward needed). Creates the `camunda-platform` realm; the `operator`/`task-user` roles; the interactive `oc-client` (secret written to the K8s secret `camunda-keycloak-client-secrets`); the service-account `benchmark-client` (used by the utility scripts); and example users `operator`, `tasklist-user`, `admin` (all `username`=`password`). Idempotent — safe to re-run.
+
+```bash
+cd keycloak && ./create-realm-and-clients.sh && cd ..
+```
+
+## 06 Install Camunda
+
+First create the credential secrets the Camunda release reads from its **own** namespace 
+(copies of the RDBMS + MinIO credentials, since Secrets can't be read across namespaces):
+
+```bash
+kubectl apply -f ./camunda-secrets.yaml
+```
+
+Then compose the full configuration with the four `-f` flags (merged in order — each one is an additive capability layer, see [Design Intent](#design-intent)): `minimal_setup.yaml` (base cluster) → `with_permissions.yaml` (+ OIDC permissions) → `with_monitoring_alerting.yaml` (+ monitoring) → `values_with_backup_restore.yml` (+ backup):
+
+### With auth
 ```bash
 helm upgrade --install \
-  --create-namespace \
   camunda camunda-platform \
   --repo https://helm.camunda.io \
-  --version 13.5.0 \
+  --version 14.7.0 \
   --namespace camunda \
   -f ./minimal_setup.yaml \
   -f ./with_permissions.yaml \
@@ -117,126 +209,168 @@ helm upgrade --install \
   -f ./values_with_backup_restore.yml
 ```
 
-### Without auth
-```bash
-helm upgrade --install \
---create-namespace \
-camunda camunda-platform \
---repo https://helm.camunda.io \
---version 13.5.0 \
---namespace camunda \
--f ./minimal_setup.yaml \
--f ./without_auth.yaml
-```
+> Each `-f` here is optional and additive — dropping the last one, two, or three flags (and skipping the corresponding external dependency's setup step above) still gives you a fully working cluster, just without that layer's capability. `-f ./minimal_setup.yaml` alone, against nothing but the PostgreSQL from [03](#03-install-postgresql), is already a complete, working basic-auth orchestration cluster — everything from here on is opt-in.
 
-
-curl -L -X POST 'http://localhost:8080/v2/deployments' -H 'Content-Type: multipart/form-data' -H 'Accept: application/json' -F 'resources=@/models/CamundaProcess.bpmn'
-
-
-
-Wait for all pods to be `Running`:
+Wait for all pods to be `Running` (note: there is **no** Elasticsearch pod in this setup):
 
 ```bash
 kubectl get pods -n camunda -w
 ```
 
-## 04 Create some data
+## 07 Create some data
 
-Deploy a test BPMN process and create process instances. This gives you data that you can verify survives a backup and restore.
-
-```bash
-export AUTH_TOKEN=$(../utils/get-token.sh)
-../utils/deploy-bpmn.sh
-../utils/create-process-instances.sh
-```
-
-`get-token.sh` fetches a bearer token from Keycloak using the benchmark client credentials. The token is passed to the subsequent scripts via `AUTH_TOKEN`.
-
-> TODO: Replace these scripts with `c8ctl` once it is available.
-
-## 05 Register Snapshot Repositories
-
-Before Elasticsearch can take snapshots, it needs to know where to store them. This job calls the Elasticsearch snapshot repository registration API to create a named repository pointing at the S3 bucket.
+Deploy a test BPMN process and create process instances, so you have data to verify survives a backup/restore. 
+Needs the Keycloak port-forward from step 04 running (for OAuth) and a Zeebe Gateway port-forward:
 
 ```bash
-kubectl apply -f ./backup_restore/register-snapshot-job.yaml
+kubectl port-forward -n camunda svc/camunda-zeebe-gateway 8080:8080 &
+
+c8ctl add profile enablement --baseUrl=http://localhost:8080/v2 \
+  --clientId=benchmark-client --clientSecret=benchmark-client \
+  --oAuthUrl=http://localhost:18080/auth/realms/camunda-platform/protocol/openid-connect/token \
+  --audience=oc-client
+
+../utils/deploy-bpmn.sh --profile=enablement
+../utils/create-process-instances.sh --profile=enablement
 ```
 
-Check the job completed successfully:
+`c8ctl add profile` registers the `benchmark-client` service-account credentials once, resolving OAuth against the in-cluster Keycloak on every subsequent call. 
+Each script reads its remaining defaults from env vars (`PROCESS_DEFINITION_ID`, `INSTANCE_COUNT`) and forwards any extra flags (like `--profile`) straight through to `c8ctl`.
+
+## 08 Enable scheduled backups
+
+The Zeebe runtime side is already scheduled hourly by `values_with_backup_restore.yml` (`CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_SCHEDULE="0 10 * * * *"`, continuous), firing at `:10` past the hour. Add the PostgreSQL side — an hourly CNPG `ScheduledBackup` firing at `:00`, 10 minutes earlier:
 
 ```bash
-kubectl logs -n camunda -l job-name=register-snapshot -f
+kubectl apply -f ./backup/scheduled-backup.yaml
+kubectl get scheduledbackup -n postgres
 ```
 
-## 06 Create Backup ConfigMap
+Both `schedule` values are real cron expressions, so the 10-minute stagger is wall-clock anchored and holds every cycle — see [Backup / restore coordination](#backup--restore-coordination) for why the order (and not just an exporter pause) is what matters here.
 
-The backup jobs read the desired backup ID from a shared ConfigMap rather than having it hardcoded. This allows you to increment the ID for each backup without editing the job YAML.
+## Accessing the UIs
 
 ```bash
-kubectl create configmap camunda-backup-config \
-  -n camunda \
-  --from-literal=BACKUP_ID=1
+# Grafana (default namespace, from step 01)
+kubectl port-forward -n default svc/metrics-grafana 3000:80
+# open http://localhost:3000
+
+# Operate (camunda namespace, from step 06)
+kubectl port-forward -n camunda svc/camunda-operate 8081:80
+# open http://localhost:8081
+
+# MinIO console (to inspect backup objects)
+kubectl port-forward -n minio svc/minio 9001:9001
+# open http://localhost:9001  (login: minioadmin / minioadmin)
 ```
 
-> TODO: Consider switching to a local MinIO instance instead of AWS S3 to remove the cloud dependency.
-
-## 07 Execute Backup
-
-The backup job performs a **coordinated backup** of both Zeebe and Elasticsearch in sequence:
-
-1. Calls the Zeebe Gateway management API to **pause exporting** (`soft=true`). This stops Zeebe from writing new records to Elasticsearch while allowing in-flight processing to continue.
-2. Waits for the Zeebe backup to complete (polls up to 20 minutes).
-3. Triggers an Elasticsearch snapshot of the web-apps indices.
-4. **Resumes exporting** once both are complete.
-
-This coordination ensures the Zeebe runtime backup and the Elasticsearch history snapshot are consistent with each other — critical for a correct restore.
-
-```bash
-kubectl apply -f ./backup_restore/take-backup-job.yaml
-```
-
-Monitor progress:
-
-```bash
-kubectl logs -n camunda -l job-name=take-backup -f
-```
+Use Operate to confirm the process instances from [07](#07-create-some-data) — this is what you check against after a restore.
 
 ---
 
+# Manual Backup
+
+For an on-demand backup outside the hourly schedules, `backup/manual-backup.sh` takes both halves in one go — the PostgreSQL backup first (a CNPG `Backup`), then the Zeebe runtime backup (`POST /actuator/backupRuntime`), following the docs' recommended order:
+
+```bash
+./backup/manual-backup.sh
+```
+
+Verify:
+
+```bash
+kubectl get backups -n postgres                # PostgreSQL (CNPG) backups
+kubectl port-forward -n minio svc/minio 9001:9001   # then browse the bucket in the console
+```
+
+This follows the [RDBMS backup guide](https://docs.camunda.io/docs/self-managed/operational-guides/backup-restore/rdbms/rdbms-backup/).
+
 # Restore
 
-The restore procedure recreates the system from the S3 backups.
+Recreates the system from the MinIO backups, per the [RDBMS restore guide](https://docs.camunda.io/docs/self-managed/operational-guides/backup-restore/rdbms/rdbms-restore/). The two storage layers are restored independently and re-align via the exporter position.
 
-## 01 Delete Cluster and PVCs
-
-Deleting the namespace removes all pods and their PersistentVolumeClaims, wiping local Zeebe data. This is intentional — Zeebe will restore from the S3 backup in a later step.
+## 01 Stop Camunda and delete its runtime data
 
 ```bash
-kubectl delete ns camunda
+helm uninstall camunda -n camunda
+kubectl delete pvc -n camunda -l app.kubernetes.io/instance=camunda
 ```
 
-## 02 Re-create Namespace, ConfigMap, and Secrets
+## 02 Delete postgresql and Restore PostgreSQL from Barman
 
-Re-create everything that must exist before Helm can install:
-
+ Delete the old cluster **and its PVC** so recovery provisions fresh storage from the backup:
 ```bash
-kubectl create ns camunda
-kubens camunda
-kubectl create configmap camunda-backup-config -n camunda --from-literal=BACKUP_ID=1
-sleep 5
-cd permissions && ./create-secrets.sh && cd ..
-cd backup_restore && ./create-secrets.sh && cd ..
+kubectl delete cluster pg-camunda -n postgres --ignore-not-found
+kubectl delete pvc -n postgres -l cnpg.io/cluster=pg-camunda --ignore-not-found
 ```
 
-Then re-deploy Camunda in its normal configuration (not restore mode yet). Elasticsearch needs to be running before we can restore indices into it.
-Mandatory to get index templates created.
+Recreate the CNPG cluster in **recovery** mode (restores the whole instance — both databases — from MinIO). This replaces the normal `postgresql/postgresql-cluster.yaml`.
+```bash
+kubectl apply -f ./backup/restore/postgresql-cluster-restore.yaml
+kubectl wait --for=condition=Ready --timeout=600s cluster/pg-camunda -n postgres
+```
+
+`postgresql-cluster-restore.yaml`'s `recoveryTarget` **must be set to a bounded point before you apply it** — it is not a reactive fallback for if something goes wrong. Recovering to "latest" WAL is unsafe here even though the two backup schedules are correctly staggered: Zeebe's restore validates the RDBMS's recorded exporter position against a set of checkpoint ranges (`RangeEntry[start, end]`, each a pair of checkpoint timestamps) recovered from its own backups, and requires the exporter position to fall inside one of them. "Latest" keeps replaying WAL however far the archive happens to have been flushed, independent of any Zeebe checkpoint — on an idle/low-traffic cluster (typical here) that easily runs past the newest Zeebe checkpoint. The symptom is a restore failure like:
+
+```
+No usable range found for partition 1 with from=null, exportedPosition=370.
+Available ranges: [RangeEntry[start=1785239136694, end=1785240600406]]
+```
+
+Before applying, fill in the `recoveryTarget` block in `postgresql-cluster-restore.yaml` with ONE of:
+- **`targetTime` (default, recommended)** — a wall-clock timestamp a couple of minutes after the Postgres backup's `:00` tick and safely before Zeebe's `:10` checkpoint tick, e.g. `2026-07-28 12:02:00.00000+00` for a 12:00 UTC cycle. No cluster lookup needed.
+- **`backupID` + `targetImmediate: true`** — pins to one specific, already-completed Postgres `Backup` object. `backupID` is the **Barman** backup ID (`status.backupId`, format `YYYYMMDDTHHMMSS`) — not the Kubernetes object's `metadata.name`, which is a different, operator-assigned string. Find the object with `kubectl get backup -n postgres` (use one created at/after a `:00` tick and before the `:10` Zeebe checkpoint you're restoring against), then get its real ID with `kubectl get backup <name> -n postgres -o jsonpath='{.status.backupId}'`.
+
+See [Backup / restore coordination](#backup--restore-coordination) below for the full mechanism.
+
+> If you re-run recovery after a failed attempt, also clear the recovered cluster's own WAL-archive prefix first, or CNPG aborts with "Expected empty archive". This uses the [MinIO Client](https://min.io/docs/minio/linux/reference/minio-mc.html) (`mc`, install once via `brew install minio-mc`), which runs on your machine and talks to MinIO over its S3 API port (9000 — distinct from the 9001 console port-forward used elsewhere in this guide):
+> ```bash
+> kubectl port-forward -n minio svc/minio 9000:9000 &
+> mc alias set local http://localhost:9000 minioadmin minioadmin 
+> mc rm --recursive --force local/camunda-backups/rdbms/pg-camunda-restored/
+> ```
+
+## 03 Restore the Zeebe runtime
+
+Redeploy in restore mode. `values_to_restore_oc.yml` sets `SPRING_PROFILES_ACTIVE=restore` + `ZEEBE_RESTORE=true` and points at the MinIO primary-storage backup; layering `minimal_setup.yaml` underneath keeps the RDBMS secondary-storage wiring and disables the other components.
 
 ```bash
 helm upgrade --install \
-  --create-namespace \
   camunda camunda-platform \
   --repo https://helm.camunda.io \
-  --version 13.5.0 \
+  --version 14.7.0 \
+  --namespace camunda \
+  -f ./minimal_setup.yaml \
+  -f ./values_to_restore_oc.yml
+```
+
+The restore runs against an **empty** Zeebe data directory (step 01 deleted the PVC; the redeploy creates a fresh one). 
+It restores the partition data, then the container exits — and because it's a StatefulSet, Kubernetes restarts it, 
+the restart sees the now-restored (non-empty) directory, and the pod enters `CrashLoopBackOff` logging `data directory ... is not empty`. 
+**This is the expected success state** — the restore completed on the first run. Confirm by inspecting the restored data and/or the first run's logs:
+
+Catch the success line (it's on the run BEFORE the current crash-looping one):
+```bash
+kubectl logs -n camunda camunda-zeebe-0 --previous | grep -iE "Restoring RDBMS backups|restored"
+```
+
+If instead you see `No backup found` or a range-mismatch failure (`No usable range found for partition N with from=..., exportedPosition=...`, 
+or the older-style `last log position ... is before the required exported position ...`), the RDBMS was recovered past the newest Zeebe checkpoint 
+— go back to step 02, tighten `recoveryTarget` in `postgresql-cluster-restore.yaml` to an earlier bounded point (see above),
+delete the cluster+PVC (and clear the WAL-archive prefix per the note above), and redo the recovery. For a bounded Zeebe-side restore, 
+set `ZEEBE_RESTORE_TO_TIMESTAMP` in `values_to_restore_oc.yml` (must not precede the recovered RDBMS state). 
+
+Do **not** proceed to step 04 until the restore has actually completed.
+
+## 04 Return to normal operation
+
+Redeploy with the standard values (Keycloak + realm must be back — re-run steps 04/05 if you also reset those) to disable restore mode:
+
+```bash
+helm upgrade --install \
+  camunda camunda-platform \
+  --repo https://helm.camunda.io \
+  --version 14.7.0 \
   --namespace camunda \
   -f ./minimal_setup.yaml \
   -f ./with_permissions.yaml \
@@ -244,89 +378,31 @@ helm upgrade --install \
   -f ./values_with_backup_restore.yml
 ```
 
-## 03 Re-register Snapshot Repositories
+Verify in Operate that the process instances from before the backup are visible and no data was lost. 
+(Directly: `kubectl exec -n postgres pg-camunda-1 -- psql -U postgres -d camunda -tAc "SELECT count(*) FROM process_instance;"`.)
 
-Elasticsearch's snapshot repository registration is stored in cluster metadata, which was lost when the namespace was deleted. Re-register it:
+## Backup / restore coordination
 
-```bash
-kubectl apply -f ./backup_restore/register-snapshot-job.yaml
-```
+The two storage layers re-align at restore time through the **exporter position**: 
+Zeebe restores its runtime from a primary-storage backup, then continues exporting into the RDBMS from where the RDBMS left off. 
+For this to work, the restored state must satisfy:
 
-## 04 Scale Down Zeebe
+> the Zeebe primary-storage backup position **≥** the RDBMS exporter position.
 
-Before restoring Elasticsearch indices, Zeebe must be stopped. If Zeebe keeps running while indices are being replaced, it will continue writing new records and conflict with the restore operation.
+Otherwise the restore aborts — older versions with `last log position X is before the required exported position Y`, 
+current versions with `No usable range found for partition N with from=..., exportedPosition=...`— both meaning the same thing:
+no retained Zeebe checkpoint range covers the RDBMS's recorded exporter position (Zeebe would otherwise re-export records the RDBMS already has).
+Three rules keep them consistent:
 
-```bash
-kubectl scale statefulset camunda-zeebe --replicas=0
-```
-
-Wait until all Zeebe pods are gone:
-
-```bash
-kubectl get pods -n camunda -l app.kubernetes.io/component=zeebe-broker -w
-```
-
-## 05 Delete Existing Indices
-
-The current Elasticsearch indices (created by the fresh deploy) must be removed before restoring from the snapshot. Restoring into a non-empty index is not supported.
-
-```bash
-kubectl apply -f ./backup_restore/delete-camunda-indices-job.yaml
-```
-
-> Use `delete-camunda-indices-dryrun-job.yaml` first to preview which indices will be deleted without actually removing them.
-
-## 06 Restore Elasticsearch Snapshots
-
-This job reads `BACKUP_ID` from the ConfigMap, finds the corresponding snapshot in the registered repository, and restores it into Elasticsearch. It handles both the orchestration (Zeebe) and web-apps (Operate/Tasklist) index repositories.
-
-```bash
-kubectl apply -f ./backup_restore/es-snapshot-restore-job.yaml
-```
-
-Monitor until complete:
-
-```bash
-kubectl logs -n camunda -l job-name=es-snapshot-restore -f
-```
-
-## 07 Restore Zeebe Runtime
-
-Delete Zeebe's local PVC (which is empty since Zeebe was scaled down before any data was written) and then redeploy with restore mode enabled. The `values_to_restore_oc.yml` overlay sets `ZEEBE_RESTORE=true` and `SPRING_PROFILES_INCLUDE=backup`, which tells Zeebe to read its initial state from the S3 backup rather than starting fresh.
-
-```bash
-kubectl delete pvc data-camunda-zeebe-0
-```
-
-```bash
-helm upgrade --install \
-  --create-namespace \
-  camunda camunda-platform \
-  --repo https://helm.camunda.io \
-  --version 13.5.0 \
-  --namespace camunda \
-  -f ./backup_restore/values_to_restore_oc.yml
-```
-
-## Return to Normal Operation
-
-Once Zeebe has completed its restore (check logs for `Restore completed`), redeploy with the standard values to disable restore mode and resume normal operation:
-
-```bash
-helm upgrade --install \
-  --create-namespace \
-  camunda camunda-platform \
-  --repo https://helm.camunda.io \
-  --version 13.5.0 \
-  --namespace camunda \
-  -f ./minimal_setup.yaml \
-  -f ./with_permissions.yaml \
-  -f ./with_monitoring_alerting.yaml \
-  -f ./values_with_backup_restore.yml
-```
-
-Verify in Operate that the process instances from before the backup are visible and that no data was lost.
+- **Backup order** — take the RDBMS backup first, then the Zeebe backup (the order `manual-backup.sh` uses, and the docs recommend). With continuous Zeebe backups enabled the primary side keeps pace with the exporter automatically. For the *scheduled* backups, this repo stagger the two cron schedules by 10 minutes — Postgres (`scheduled-backup.yaml`) at `:00`, Zeebe (`CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_SCHEDULE` in `values_with_backup_restore.yml`) at `:10`. This only works because `CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_SCHEDULE` accepts a genuine [CRON expression](https://docs.camunda.io/docs/self-managed/components/orchestration-cluster/core-settings/configuration/properties/#camundadataprimary-storagebackup) (6-field, seconds-leading — same style CNPG's `schedule` field uses). The 10-minute gap needs to comfortably exceed how long the Postgres backup actually takes to run — fine on a small/low-data cluster, but widen it (or drop back to an explicit wait-then-trigger pipeline) if backup duration ever grows closer to that margin.
+- **Backup order, but causal instead of timed** — if you'd rather not depend on a fixed gap at all (e.g. backup duration is unpredictable), replace both schedules with a single external trigger (cron job, CI pipeline, etc.) that runs the RDBMS backup, waits for it to reach `completed`, and only then calls `POST /actuator/backupRuntime` for the Zeebe side — same order, guaranteed by completion rather than elapsed time. `backup/manual-backup.sh` already implements exactly that sequence for on-demand use; wrapping it in a Kubernetes `CronJob` gets you the same guarantee on a schedule.
+- **Restore point (mandatory, not a fallback)** — when recovering the RDBMS, never leave `recoveryTarget` unset / rely on "latest" WAL replay, even though the backup schedules are staggered correctly. Zeebe's restore resolves each retained backup into a `RangeEntry(start, end)` — a pair of checkpoint timestamps — converts that into a log-position range, and requires the RDBMS's recorded exporter position to fall inside `[firstLogPosition(start), checkpointPosition(end)]` for at least one retained range. Staggering the two backup *schedules* only guarantees the Zeebe backup starts after the Postgres one does; it says nothing about how far WAL replay continues afterwards. On a busy cluster "latest" usually still lands inside a range because a Zeebe checkpoint follows soon after every burst of activity; on an idle/low-traffic cluster (this local teaching setup) "latest" can keep replaying WAL well past the newest Zeebe checkpoint with nothing to stop it, pushing the exporter position outside every retained range. Always pin `recoveryTarget` explicitly in `postgresql-cluster-restore.yaml` — either `targetTime` set a couple of minutes after the Postgres `:00` tick and before the Zeebe `:10` tick (the default), or `backupID` + `targetImmediate: true` pinned to one known-good completed `Backup` object. See [step 02](#02-delete-postgresql-and-restore-postgresql-from-barman) above.
 
 
+# Notes / caveats
 
-> TODO: Add `benchmarking` example
+- **Local/dev credentials.** Every credential here is a simple hardcoded `username=password` (or `clientId=secret`) pair — DB creds, Keycloak admin, MinIO root, OIDC client secrets. Each manifest's header keeps the "real" imperative secret-creation command commented out. Replace them (and `defaultRoles.admin.users`) before this is anything but a local/dev cluster.
+- **CNPG Barman on 1.30.** In-tree `barmanObjectStore` is deprecated (v1.26+) in favour of the Barman Cloud Plugin, but remains the default and works on 1.30. If your operator image no longer bundles `barman-cloud`, install the Barman Cloud Plugin and switch `postgresql-cluster.yaml`/`scheduled-backup.yaml` to an `ObjectStore` CR + `method: plugin`.
+- **Single instance, no HA.** `pg-camunda` runs one instance; the orchestration cluster is single-node. Appropriate for local/enablement, not production.
+- **No Ingress/TLS.** Everything is reached via `kubectl port-forward`. Exposing this beyond local access requires re-introducing Ingress (and adjusting the Keycloak hostname/`iss` handling).
+- **No Optimize / Elasticsearch.** This first version omits Optimize. Adding it later reintroduces an Elasticsearch dependency (scoped to Optimize) as a separate values layer.

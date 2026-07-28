@@ -1,3 +1,15 @@
+# Layer 1 (base) - the standalone starting point for this guide's iterative install. On its
+# own, against nothing but an external PostgreSQL (postgresql/postgresql-cluster.yaml), this is
+# already a complete, working orchestration cluster: single node, RDBMS secondary storage,
+# basic auth. Every other values file in this directory (with_permissions.yaml,
+# with_monitoring_alerting.yaml, values_with_backup_restore.yml) is an additive layer applied on
+# top of this one via extra `-f` flags - none of them make sense without this file, but this
+# file needs none of them. See the README's "Design Intent" section.
+#
+# Note that secondary storage (PostgreSQL) is an external dependency even at this base layer -
+# this file only ever points at it (orchestration.data.secondaryStorage.rdbms.url), it never
+# provisions it.
+
 global:
   security:
     authentication:
@@ -9,6 +21,27 @@ orchestration:
   partitionCount: "1"
   replicationFactor: "1"
   pvcSize: 20Gi
+  data:
+    secondaryStorage:
+      # rdbms | elasticsearch | opensearch. This guide uses rdbms (PostgreSQL) as secondary
+      # storage for Operate/Tasklist/Admin - no Elasticsearch. Required to be explicit as of
+      # chart 14.x (8.9); previously inferred.
+      type: rdbms
+      rdbms:
+        # pg-camunda-rw is the CloudNativePG-managed read-write Service from
+        # postgresql/postgresql-cluster.yaml (postgres namespace) - reached cross-namespace via its FQDN.
+        url: "jdbc:postgresql://pg-camunda-rw.postgres.svc.cluster.local:5432/camunda"
+        username: "camunda"
+        secret:
+          existingSecret: "camunda-rdbms-credentials"
+          existingSecretKey: "password"
+  exporters:
+    # The RDBMS exporter writes Operate/Tasklist/Admin history into PostgreSQL.
+    rdbms:
+      enabled: true
+    # The Elasticsearch/OpenSearch-based Camunda exporter stays off - not needed without ES.
+    camunda:
+      enabled: false
   resources:
     requests:
       cpu: "400m"
@@ -17,18 +50,11 @@ orchestration:
       cpu: "800m"
       memory: "2000Mi"
 
+# The bundled Elasticsearch subchart is off - Operate/Tasklist/Admin run on RDBMS. Camunda
+# 8.10 removes this bundled (Bitnami) subchart entirely, so not depending on it here is also
+# the forward-compatible choice.
 elasticsearch:
-  master:
-    replicaCount: 1
-    resources:
-      requests:
-        cpu: "1000m"
-        memory: "2Gi"
-      limits:
-        cpu: "2000m"
-        memory: "2Gi"
-  global:
-    kibanaEnabled: false
+  enabled: false
 
 identity:
   enabled: false
