@@ -1,0 +1,36 @@
+{
+  "schemaId": "builtin:anomaly-detection.metric-events",
+  "schemaVersion": "1.0.15",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "summary": "[Camunda Platform] ZeebeProcessingLag",
+    "queryDefinition": {
+      "type": "METRIC_SELECTOR",
+      "metricSelector": "(zeebe.log.appender.last.appended.position:splitBy(\"k8s.namespace.name\",\"partition\"):max)-(zeebe.stream.processor.last.processed.position:splitBy(\"k8s.namespace.name\",\"partition\"):max)",
+      "managementZone": null,
+      "queryOffset": null
+    },
+    "modelProperties": {
+      "type": "STATIC_THRESHOLD",
+      "threshold": 1000,
+      "alertOnNoData": false,
+      "alertCondition": "ABOVE",
+      "violatingSamples": 60,
+      "samples": 60,
+      "dealertingSamples": 5
+    },
+    "eventTemplate": {
+      "title": "[Camunda Platform] ZeebeProcessingLag",
+      "description": "Zeebe processing lag > 1,000 records for 1 hour on partition {dims} — the stream processor is falling behind the log appender.\n\nThe source rule templates severity as `page` on Stable-channel clusters and `critical` otherwise — flattened to critical here, same as datadog_alerts/.",
+      "eventType": "SLOWDOWN",
+      "davisMerge": true,
+      "metadata": [
+        { "metadataKey": "team", "metadataValue": "zeebe" },
+        { "metadataKey": "source_rule", "metadataValue": "prometheus-grafana/prometheus-alerts/zeebe-behaviors.yaml#ZeebeProcessingLag" }
+      ]
+    },
+    "eventEntityDimensionKey": null,
+    "legacyId": null
+  }
+}

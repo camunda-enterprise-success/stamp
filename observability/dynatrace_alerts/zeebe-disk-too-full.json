@@ -1,0 +1,36 @@
+{
+  "schemaId": "builtin:anomaly-detection.metric-events",
+  "schemaVersion": "1.0.15",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "summary": "[Camunda Infrastructure] ZeebeDiskTooFull",
+    "queryDefinition": {
+      "type": "METRIC_SELECTOR",
+      "metricSelector": "(dt.kubernetes.persistentvolumeclaim.used:filter(contains(\"k8s.persistentvolumeclaim.name\",\"zeebe\")):splitBy(\"k8s.namespace.name\"):max)/(dt.kubernetes.persistentvolumeclaim.capacity:filter(contains(\"k8s.persistentvolumeclaim.name\",\"zeebe\")):splitBy(\"k8s.namespace.name\"):max)",
+      "managementZone": null,
+      "queryOffset": null
+    },
+    "modelProperties": {
+      "type": "STATIC_THRESHOLD",
+      "threshold": 0.8,
+      "alertOnNoData": false,
+      "alertCondition": "ABOVE",
+      "violatingSamples": 60,
+      "samples": 60,
+      "dealertingSamples": 5
+    },
+    "eventTemplate": {
+      "title": "[Camunda Infrastructure] ZeebeDiskTooFull",
+      "description": "Zeebe PVC disk usage > 80% for 1 hour in namespace {dims} — often a sign of an unhealthy cluster, risk of broker crash on disk exhaustion.\n\nUses the dt.kubernetes.* built-ins (per dynatrace/metric-mapping-8.7.md), not a Camunda-emitted metric — requires Dynatrace Kubernetes monitoring (Dynatrace Operator) on the cluster regardless of how Zeebe's own metrics arrive. Verify the k8s.persistentvolumeclaim.name dimension naming in your tenant.",
+      "eventType": "RESOURCE",
+      "davisMerge": true,
+      "metadata": [
+        { "metadataKey": "team", "metadataValue": "zeebe" },
+        { "metadataKey": "source_rule", "metadataValue": "prometheus-grafana/prometheus-alerts/zeebe-resources.yaml#ZeebeDiskTooFull" }
+      ]
+    },
+    "eventEntityDimensionKey": null,
+    "legacyId": null
+  }
+}

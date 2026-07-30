@@ -1,0 +1,36 @@
+{
+  "schemaId": "builtin:anomaly-detection.metric-events",
+  "schemaVersion": "1.0.15",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "summary": "[Camunda Infrastructure] ElasticHighNumberOfShards",
+    "queryDefinition": {
+      "type": "METRIC_SELECTOR",
+      "metricSelector": "(elasticsearch_cluster_health_active_shards:splitBy(\"k8s.namespace.name\"):avg)/(elasticsearch_cluster_health_number_of_data_nodes:splitBy(\"k8s.namespace.name\"):avg*elasticsearch_clustersettings_stats_max_shards_per_node:splitBy(\"k8s.namespace.name\"):avg)",
+      "managementZone": null,
+      "queryOffset": null
+    },
+    "modelProperties": {
+      "type": "STATIC_THRESHOLD",
+      "threshold": 0.9,
+      "alertOnNoData": false,
+      "alertCondition": "ABOVE",
+      "violatingSamples": 10,
+      "samples": 10,
+      "dealertingSamples": 5
+    },
+    "eventTemplate": {
+      "title": "[Camunda Infrastructure] ElasticHighNumberOfShards",
+      "description": "Elasticsearch shard usage > 90% of cluster capacity in namespace {dims} for 10 minutes — risk of shard allocation failures.\n\nMetric names use the underscored Prometheus spelling (elasticsearch_cluster_health_active_shards, not dots): Elasticsearch is not a Micrometer app, so its elasticsearch_exporter endpoint reaches Dynatrace (if at all) through an OTel Collector's prometheus receiver, which keeps the Prometheus spelling verbatim (see dynatrace/runbook-dynatrace.md step 1). This differs from datadog_alerts/, which dotted this same metric because Datadog's OpenMetrics check always converts names that way.",
+      "eventType": "RESOURCE",
+      "davisMerge": true,
+      "metadata": [
+        { "metadataKey": "team", "metadataValue": "data-layer" },
+        { "metadataKey": "source_rule", "metadataValue": "prometheus-grafana/prometheus-alerts/elasticsearch.yaml#ElasticHighNumberOfShards" }
+      ]
+    },
+    "eventEntityDimensionKey": null,
+    "legacyId": null
+  }
+}

@@ -223,8 +223,10 @@ dashboard to keep the change.
       per-series state and parallel replicas corrupt delta offsets
 - [ ] Decide whether to keep `management.prometheus.metrics.export.enabled=true`; leaving it on
       costs little and keeps the Grafana baseline usable as a reference
-- [ ] Consider Davis metric events for the signals in `Metrics _ Alerts 8.7 -> 8.8.xlsx`
-      (alerting was out of scope for this port; `datadog_alerts/` shows the equivalent set)
+- [ ] Davis metric events for the signals in `Metrics _ Alerts 8.7 -> 8.8.xlsx` are ported in
+      [`dynatrace_alerts/`](../dynatrace_alerts/) (`datadog_alerts/` shows the equivalent Datadog
+      set) — see [`dynatrace_alerts/alert-mapping-8.7.md`](../dynatrace_alerts/alert-mapping-8.7.md)
+      for the conversion notes and caveats
 
 ---
 

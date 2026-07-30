@@ -1,0 +1,36 @@
+{
+  "schemaId": "builtin:anomaly-detection.metric-events",
+  "schemaVersion": "1.0.15",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "summary": "[Camunda Application] ConnectorsJobWorkerQueueOverflowFor20Minutes",
+    "queryDefinition": {
+      "type": "METRIC_SELECTOR",
+      "metricSelector": "executor.queued.tasks:filter(in(\"name\",\"zeebe_client_thread_pool\",\"camundaClientExecutor\")):splitBy(\"k8s.namespace.name\"):max",
+      "managementZone": null,
+      "queryOffset": null
+    },
+    "modelProperties": {
+      "type": "STATIC_THRESHOLD",
+      "threshold": 79,
+      "alertOnNoData": false,
+      "alertCondition": "ABOVE",
+      "violatingSamples": 20,
+      "samples": 20,
+      "dealertingSamples": 5
+    },
+    "eventTemplate": {
+      "title": "[Camunda Application] ConnectorsJobWorkerQueueOverflowFor20Minutes",
+      "description": "Connectors job worker queue >= 80 tasks for 20 minutes in namespace {dims} — queue overflow risk; check if jobs are progressing and if the cluster needs to be scaled up.\n\nThreshold is set to > 79, equivalent to >= 80 (same workaround datadog_alerts/ used, since ABOVE is exclusive). The threshold (25 originally, since raised) is meant to track max-jobs-active + queue depth — see the source rule's TODOs before changing it.\n\nAssumes the Connectors runtime is configured with the same Micrometer OTLP export settings as Zeebe (camunda-otlp-values.yaml only wires up zeebe/zeebeGateway, not connectors) — if Connectors is instead collector-scraped, use the underscored key `executor_queued_tasks` instead.",
+      "eventType": "RESOURCE",
+      "davisMerge": true,
+      "metadata": [
+        { "metadataKey": "team", "metadataValue": "connectors" },
+        { "metadataKey": "source_rule", "metadataValue": "prometheus-grafana/prometheus-alerts/connectors.yaml#ConnectorsJobWorkerQueueOverflowFor20Minutes" }
+      ]
+    },
+    "eventEntityDimensionKey": null,
+    "legacyId": null
+  }
+}

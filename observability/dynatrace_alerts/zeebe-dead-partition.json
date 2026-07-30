@@ -1,0 +1,36 @@
+{
+  "schemaId": "builtin:anomaly-detection.metric-events",
+  "schemaVersion": "1.0.15",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "summary": "[Camunda Platform] ZeebeDeadPartition",
+    "queryDefinition": {
+      "type": "METRIC_SELECTOR",
+      "metricSelector": "zeebe.health:splitBy(\"k8s.namespace.name\"):min",
+      "managementZone": null,
+      "queryOffset": null
+    },
+    "modelProperties": {
+      "type": "STATIC_THRESHOLD",
+      "threshold": 0,
+      "alertOnNoData": false,
+      "alertCondition": "BELOW",
+      "violatingSamples": 5,
+      "samples": 5,
+      "dealertingSamples": 5
+    },
+    "eventTemplate": {
+      "title": "[Camunda Platform] ZeebeDeadPartition",
+      "description": "Zeebe cluster has at least one DEAD partition for more than 5 minutes in namespace {dims}. zeebe.health values: 1 = healthy, 0 = degraded, -1 = dead. A dead partition halts all processing on it.\n\nThe source rule templates severity as `page` on Stable-channel clusters and `critical` otherwise via label_cloud_camunda_io_channel — metric events have no per-instance severity field, so this uses the rule's default (critical), same simplification datadog_alerts/ made.",
+      "eventType": "AVAILABILITY",
+      "davisMerge": true,
+      "metadata": [
+        { "metadataKey": "team", "metadataValue": "zeebe" },
+        { "metadataKey": "source_rule", "metadataValue": "prometheus-grafana/prometheus-alerts/zeebe-behaviors.yaml#ZeebeDeadPartition" }
+      ]
+    },
+    "eventEntityDimensionKey": null,
+    "legacyId": null
+  }
+}

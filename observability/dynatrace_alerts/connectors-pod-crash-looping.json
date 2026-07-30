@@ -1,0 +1,36 @@
+{
+  "schemaId": "builtin:anomaly-detection.metric-events",
+  "schemaVersion": "1.0.15",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "summary": "[Camunda Application] ConnectorsPodCrashLoopingFor20Minutes",
+    "queryDefinition": {
+      "type": "METRIC_SELECTOR",
+      "metricSelector": "dt.kubernetes.container.restarts:filter(contains(\"k8s.pod.name\",\"connectors-deployment\")):splitBy(\"k8s.namespace.name\",\"k8s.pod.name\"):rate(5m)",
+      "managementZone": null,
+      "queryOffset": null
+    },
+    "modelProperties": {
+      "type": "STATIC_THRESHOLD",
+      "threshold": 0,
+      "alertOnNoData": false,
+      "alertCondition": "ABOVE",
+      "violatingSamples": 20,
+      "samples": 20,
+      "dealertingSamples": 5
+    },
+    "eventTemplate": {
+      "title": "[Camunda Application] ConnectorsPodCrashLoopingFor20Minutes",
+      "description": "A Connectors pod ({dims}) has been restarting for more than 20 minutes.\n\nUses the dt.kubernetes.container.restarts built-in (per dynatrace/metric-mapping-8.7.md), not cAdvisor/kube-state-metrics — requires Dynatrace Kubernetes monitoring, ingest-path-independent for Connectors' own metrics.",
+      "eventType": "AVAILABILITY",
+      "davisMerge": true,
+      "metadata": [
+        { "metadataKey": "team", "metadataValue": "connectors" },
+        { "metadataKey": "source_rule", "metadataValue": "prometheus-grafana/prometheus-alerts/connectors.yaml#ConnectorsPodCrashLoopingFor20Minutes" }
+      ]
+    },
+    "eventEntityDimensionKey": null,
+    "legacyId": null
+  }
+}
