@@ -1,0 +1,108 @@
+# Keycloak Custom Resource - deployed via the official Keycloak Operator.
+#
+# Per the migration-from-bitnami guidance (docs.camunda.io -> self-managed/deployment/helm/
+# operational-tasks/migration-from-bitnami/), the Bitnami Keycloak subchart (`identityKeycloak`
+# in the camunda-platform chart) is deprecated and removed entirely in Camunda 8.10. The
+# recommended replacement is the Keycloak-team-maintained Keycloak Operator, using Camunda's
+# quay-optimized image (bundles the Camunda Identity login theme, the /auth base path, and the
+# AWS JDBC wrapper). This replaces the external consulting-sandbox Keycloak the guide used to
+# depend on - auth is now fully self-contained in-cluster.
+#
+# This instance lives in its own "keycloak" namespace - decoupled from the "camunda" namespace,
+# same layering principle as the rest of this setup. No Ingress here: this targets a local
+# cluster accessed entirely via `kubectl port-forward` (see the README), following Camunda's
+# own "no-domain" reference pattern.
+#
+# Depends on ../postgresql/postgresql-cluster.yaml being deployed first (the shared CloudNativePG instance
+# this points at). Install the Operator CRDs + controller first (see the README), then
+# `kubectl apply -f` this file. The two credential Secrets below are inlined with simple
+# username=password values (keycloak/keycloak, admin/admin) for easier initial understanding -
+# swap them for real generated passwords before this becomes anything but a local/dev cluster:
+#
+#   kubectl create secret generic keycloak-rdbms-credentials \
+#     --namespace keycloak --type=kubernetes.io/basic-auth \
+#     --from-literal=username='keycloak' --from-literal=password='<keycloak-db-password>'
+#   kubectl create secret generic keycloak-admin-credentials \
+#     --namespace keycloak --type=kubernetes.io/basic-auth \
+#     --from-literal=username='admin' --from-literal=password='<keycloak-admin-password>'
+#
+# bootstrapAdmin below only takes effect on the *initial* cluster bootstrap (per the Keycloak
+# Operator docs) - it has no effect once a master realm already exists, so the admin
+# credentials Secret must exist before the first `kubectl apply -f ./keycloak/keycloak-instance.yaml`
+# (from the installation/ directory - see the README).
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: keycloak-rdbms-credentials
+  namespace: keycloak
+type: kubernetes.io/basic-auth
+stringData:
+  username: keycloak
+  password: keycloak
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: keycloak-admin-credentials
+  namespace: keycloak
+type: kubernetes.io/basic-auth
+stringData:
+  username: admin
+  password: admin
+---
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: Keycloak
+metadata:
+  name: keycloak
+  namespace: keycloak
+spec:
+  # renovate: datasource=docker depName=camunda/keycloak versioning=regex:^quay-optimized-(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)$
+  image: docker.io/camunda/keycloak:quay-optimized-26.7.0
+  instances: 1
+  bootstrapAdmin:
+    # Passed in from the start instead of relying on the Operator's auto-generated
+    # "keycloak-initial-admin"/temp-admin - see the secret creation command above.
+    user:
+      secret: keycloak-admin-credentials
+  db:
+    # Same shared CloudNativePG instance as ../minimal_setup.yaml (../postgresql/postgresql-cluster.yaml), in
+    # its own "keycloak" database - no separate Postgresql deployment for Keycloak.
+    # Cross-namespace Service DNS: this instance lives in "keycloak", the DB in "postgres".
+    #
+    # The "quay-optimized" image only registers the AWS JDBC wrapper driver, not the plain
+    # PostgreSQL one - the jdbc:aws-wrapper:postgresql: scheme is required even against a plain
+    # (non-RDS/Aurora) Postgres like this one, or startup fails with
+    # "Driver does not support the provided URL".
+    url: "jdbc:aws-wrapper:postgresql://pg-camunda-rw.postgres.svc.cluster.local:5432/keycloak"
+    usernameSecret:
+      name: keycloak-rdbms-credentials
+      key: username
+    passwordSecret:
+      name: keycloak-rdbms-credentials
+      key: password
+  http:
+    httpEnabled: true
+    # 18080 avoids clashing with the Zeebe Gateway's 8080 if you port-forward both.
+    httpPort: 18080
+  additionalOptions:
+    - name: http-relative-path
+      value: /auth
+  ingress:
+    # No Ingress - access is entirely via `kubectl port-forward` (see the README).
+    enabled: false
+  hostname:
+    # Fixed to the Service's cluster-DNS name (not "localhost") so the `iss` claim baked into
+    # every issued token is identical regardless of whether the request came from an in-cluster
+    # pod (orchestration, via cluster DNS) or your local browser (via port-forward + a matching
+    # /etc/hosts entry - see the README). This is what lets a single URL work for both
+    # issuerBackendUrl and issuer in ../with_permissions.yaml.
+    hostname: keycloak-service.keycloak.svc.cluster.local
+    strict: false
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi

@@ -23,19 +23,17 @@ spec:
           - name: JAVA_OPTIONS
             value: >-
               -Dcamunda.client.mode=self-managed
-              -Dcamunda.client.auth.token-url=https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc/protocol/openid-connect/token
+              -Dcamunda.client.auth.method=none
               -Dcamunda.client.zeebe.grpc-address=http://camunda-zeebe-gateway:26500            
               -Dcamunda.client.zeebe.prefer-rest-over-grpc=false
-              -Dcamunda.client.auth.client-id=benchmark-client
-              -Dcamunda.client.auth.client-secret=benchmark-client
               -Dcamunda.client.zeebe.enabled=true
               -Dcamunda.client.zeebe.prefer-rest-over-grpc=false
-              -Dbenchmark.startPiPerSecond=10
+              -Dbenchmark.startPiPerSecond=1
               -Dbenchmark.maxBackpressurePercentage=1.0
               -Dbenchmark.taskCompletionDelay=0
               -Dbenchmark.bpmnProcessId=BenchmarkProcess
               -Dbenchmark.jobType=benchmark-task
-              -Dbenchmark.multipleJobTypes=15
+              -Dbenchmark.multipleJobTypes=1
               -Dbenchmark.payloadPath=file:/payload.json
               -Dbenchmark.autoDeployProcess=false
               -Dbenchmark.warmupPhaseDurationMillis=3000
@@ -43,11 +41,11 @@ spec:
               -Dbenchmark.startPiIncreaseFactor=0.1
         resources:
           limits:
-            cpu: 1
-            memory: 4Gi
+            cpu: 0.4
+            memory: 2Gi
           requests:
-            cpu: 1
-            memory: 4Gi
+            cpu: 0.4
+            memory: 2Gi
         volumeMounts:
         - name: payload
           mountPath: payload.json

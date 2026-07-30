@@ -1,0 +1,138 @@
+# Single shared PostgreSQL instance - deployed via the CloudNativePG (CNPG) operator - used
+# by BOTH Camunda orchestration (../minimal_setup.yaml, as RDBMS secondary storage) and Keycloak
+# (../keycloak/keycloak-instance.yaml). One instance, two databases (camunda + keycloak), rather than a
+# dedicated cluster per consumer (Camunda's own reference architecture deploys one CNPG
+# Cluster per component - we deliberately deviate from that here since this is a fresh install
+# with no pre-existing RDBMS, and one shared instance is the leaner choice for that starting
+# point).
+#
+# Lives in its own "postgres" namespace. Cross-namespace consumers reach the CNPG read-write
+# Service via pg-camunda-rw.postgres.svc.cluster.local: the Camunda orchestration cluster
+# (camunda ns, ../minimal_setup.yaml) and Keycloak (keycloak ns, ../keycloak/keycloak-instance.yaml).
+#
+# BACKUP: spec.backup.barmanObjectStore points at the local MinIO store (../backup/minio.yaml, minio ns)
+# so Postgres (the secondary storage) is backed up with Barman into the SAME bucket the Zeebe
+# primary-storage backup uses - under the "rdbms" prefix. CNPG turns on continuous WAL
+# archiving to that store automatically once this block is present; ../backup/scheduled-backup.yaml adds
+# the hourly base backup on top. See the RDBMS backup guide:
+#   https://docs.camunda.io/docs/self-managed/operational-guides/backup-restore/rdbms/rdbms-backup/
+#
+# The credential Secrets below are inlined with simple username=password values
+# (camunda/camunda, keycloak/keycloak, minio) for easier initial understanding - swap them for
+# real generated passwords before this becomes anything but a local/dev cluster. Because
+# Secrets are namespace-scoped, camunda-rdbms-credentials is also declared in the camunda
+# namespace (../camunda-secrets.yaml), keycloak-rdbms-credentials in the keycloak namespace
+# (../keycloak/keycloak-instance.yaml), and minio-credentials in the minio namespace (../backup/minio.yaml):
+#
+#   kubectl create secret generic camunda-rdbms-credentials \
+#     --namespace postgres --type=kubernetes.io/basic-auth \
+#     --from-literal=username='camunda' --from-literal=password='<camunda-db-password>'
+#   kubectl create secret generic keycloak-rdbms-credentials \
+#     --namespace postgres --type=kubernetes.io/basic-auth \
+#     --from-literal=username='keycloak' --from-literal=password='<keycloak-db-password>'
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: postgres
+---
+# CNPG reads its S3/Barman credentials from a Secret in the Cluster's own namespace - so a copy
+# of minio-credentials lives here too (same values as ../backup/minio.yaml / ../camunda-secrets.yaml).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: minio-credentials
+  namespace: postgres
+type: Opaque
+stringData:
+  ACCESS_KEY_ID: minioadmin
+  ACCESS_SECRET_KEY: minioadmin
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: camunda-rdbms-credentials
+  namespace: postgres
+type: kubernetes.io/basic-auth
+stringData:
+  username: camunda
+  password: camunda
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: keycloak-rdbms-credentials
+  namespace: postgres
+type: kubernetes.io/basic-auth
+stringData:
+  username: keycloak
+  password: keycloak
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: pg-camunda
+  namespace: postgres
+spec:
+  instances: 1
+  description: Shared PostgreSQL instance for Camunda orchestration (RDBMS secondary storage) and Keycloak
+  # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql versioning=docker
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.4
+  storage:
+    size: 15Gi
+  bootstrap:
+    initdb:
+      # The bootstrap database - Camunda orchestration's own. Keycloak's database is added
+      # separately below via the Database CR, since initdb only creates one.
+      database: camunda
+      owner: camunda
+      dataChecksums: true
+      secret:
+        name: camunda-rdbms-credentials
+  managed:
+    roles:
+      # Additional login role for Keycloak's database (added to the same instance).
+      - name: keycloak
+        ensure: present
+        login: true
+        passwordSecret:
+          name: keycloak-rdbms-credentials
+  # Barman backup to the local MinIO object store. In-tree barmanObjectStore is deprecated as
+  # of CNPG 1.26 (in favour of the Barman Cloud Plugin) but remains the default and works on
+  # 1.30. If your CNPG operator image no longer bundles barman-cloud, install the Barman Cloud
+  # Plugin and switch this to an ObjectStore CR + `.spec.plugins` / ScheduledBackup method: plugin.
+  backup:
+    barmanObjectStore:
+      destinationPath: "s3://camunda-backups/rdbms"
+      endpointURL: "http://minio.minio.svc.cluster.local:9000"
+      s3Credentials:
+        accessKeyId:
+          name: minio-credentials
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: minio-credentials
+          key: ACCESS_SECRET_KEY
+      wal:
+        compression: gzip
+    # Keep 7 days of Postgres backups (matches the P7D retention on the Zeebe side).
+    retentionPolicy: "7d"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+---
+# Second database on the same instance/role set above - owned by the "keycloak" role,
+# referenced by ../keycloak/keycloak-instance.yaml.
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: pg-camunda-keycloak
+  namespace: postgres
+spec:
+  name: keycloak
+  owner: keycloak
+  cluster:
+    name: pg-camunda

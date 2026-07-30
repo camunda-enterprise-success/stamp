@@ -1,0 +1,176 @@
+# Local MinIO object store - the single blob store this setup backs up into, replacing the
+# earlier AWS S3 dependency. Both backup halves land in ONE bucket ("camunda-backups"):
+#   - s3://camunda-backups/oc-runtime  <- Zeebe primary-storage (runtime) backups
+#                                         (../values_with_backup_restore.yml)
+#   - s3://camunda-backups/rdbms       <- Postgres/CNPG Barman backups
+#                                         (../postgresql/postgresql-cluster.yaml spec.backup)
+#
+# Lives in its own "minio" namespace. Cross-namespace consumers reach it via the fully
+# qualified Service name "minio.minio.svc.cluster.local:9000": the Camunda orchestration pods
+# (camunda ns, ../values_with_backup_restore.yml) and the CNPG cluster (postgres ns,
+# ../postgresql/postgresql-cluster.yaml). Single replica, one PVC - no HA, appropriate for a
+# local/enablement cluster, not production.
+#
+# The credentials below (minioadmin / minioadmin) are inlined for easy initial understanding.
+# The key names ACCESS_KEY_ID / ACCESS_SECRET_KEY match what CloudNativePG's s3Credentials
+# expects; the Zeebe backup env in ../values_with_backup_restore.yml reads the same two keys.
+# Because Secrets are namespace-scoped, copies of minio-credentials also exist in the postgres
+# namespace (../postgresql/postgresql-cluster.yaml) and the camunda namespace (../camunda-secrets.yaml). Swap
+# them for generated values before this is anything but a local/dev cluster.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: minio
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: minio-credentials
+  namespace: minio
+type: Opaque
+stringData:
+  # MinIO root user / password AND the S3 access/secret key pair (same values, one source).
+  ACCESS_KEY_ID: minioadmin
+  ACCESS_SECRET_KEY: minioadmin
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-data
+  namespace: minio
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: minio
+  labels:
+    app: minio
+spec:
+  replicas: 1
+  strategy:
+    # Recreate (not RollingUpdate): a single ReadWriteOnce PVC can't be mounted by two pods
+    # at once, which a rolling update would attempt.
+    type: Recreate
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+        - name: minio
+          # Pin to a specific RELEASE.* tag before production.
+          image: quay.io/minio/minio:latest
+          args:
+            - server
+            - /data
+            - --console-address
+            - ":9001"
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: minio-credentials
+                  key: ACCESS_KEY_ID
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio-credentials
+                  key: ACCESS_SECRET_KEY
+          ports:
+            - name: api
+              containerPort: 9000
+            - name: console
+              containerPort: 9001
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: api
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: minio-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: minio
+  labels:
+    app: minio
+spec:
+  selector:
+    app: minio
+  ports:
+    - name: api
+      port: 9000
+      targetPort: api
+    - name: console
+      port: 9001
+      targetPort: console
+---
+# One-shot Job: waits for MinIO, then creates the "camunda-backups" bucket. Idempotent
+# (mb --ignore-existing), so re-applying this file is harmless.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-create-bucket
+  namespace: minio
+  labels:
+    type: minio-init
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          # Pin to a specific RELEASE.* tag before production.
+          image: quay.io/minio/mc:latest
+          command: ["/bin/sh", "-c"]
+          env:
+            - name: ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: minio-credentials
+                  key: ACCESS_KEY_ID
+            - name: ACCESS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-credentials
+                  key: ACCESS_SECRET_KEY
+          args:
+            - |
+              set -e
+              echo "Waiting for MinIO to be reachable ..."
+              until mc alias set local http://minio:9000 "$ACCESS_KEY_ID" "$ACCESS_SECRET_KEY" >/dev/null 2>&1; do
+                echo "  ... not ready yet, retrying in 3s"
+                sleep 3
+              done
+              echo "Creating bucket 'camunda-backups' (if absent) ..."
+              mc mb --ignore-existing local/camunda-backups
+              echo "Done. Bucket layout:"
+              echo "  s3://camunda-backups/oc-runtime  (Zeebe primary-storage backups)"
+              echo "  s3://camunda-backups/rdbms       (Postgres/CNPG Barman backups)"

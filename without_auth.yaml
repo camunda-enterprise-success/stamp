@@ -1,0 +1,67 @@
+global:
+  security:
+    authentication:
+      method: basic
+
+orchestration:
+  security:
+    authentication:
+      unprotectedApi: true
+    authorizations:
+      enabled: false
+  api:
+    enabled: true # default
+  ingress:
+    grpc:
+      enabled: false
+  contextPath: "/"
+  clusterSize: "1"
+  partitionCount: "1"
+  replicationFactor: "1"
+  pvcSize: 20Gi
+  data:
+    secondaryStorage:
+      # RDBMS (PostgreSQL) secondary storage - no Elasticsearch. Requires postgresql/postgresql-cluster.yaml
+      # (postgres namespace) deployed first, plus camunda-rdbms-credentials in this namespace
+      # (camunda-secrets.yaml). Reached cross-namespace via the CNPG Service FQDN.
+      type: rdbms
+      rdbms:
+        url: "jdbc:postgresql://pg-camunda-rw.postgres.svc.cluster.local:5432/camunda"
+        username: "camunda"
+        secret:
+          existingSecret: "camunda-rdbms-credentials"
+          existingSecretKey: "password"
+  exporters:
+    rdbms:
+      enabled: true
+    camunda:
+      enabled: false
+  resources:
+    requests:
+      cpu: "400m"
+      memory: "1000Mi"
+    limits:
+      cpu: "800m"
+      memory: "2000Mi"
+
+elasticsearch:
+  enabled: false
+
+identity:
+  enabled: false
+identityPostgresql:
+  enabled: false
+identityKeycloak:
+  enabled: false
+optimize:
+  enabled: false
+connectors:
+  enabled: false
+webModeler:
+  enabled: false
+console:
+  enabled: false
+postgresql:
+  enabled: false
+prometheusServiceMonitor:
+  enabled: false

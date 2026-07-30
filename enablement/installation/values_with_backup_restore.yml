@@ -1,57 +1,82 @@
+# Layer 4 (+backup), the last additive layer in this guide - on top of minimal_setup.yaml (+
+# with_permissions.yaml + with_monitoring_alerting.yaml). See the README's "Design Intent"
+# section and the Architecture Overview table.
+#
+# Zeebe primary-storage (runtime) backup layer - the "primary storage" half of the RDBMS
+# backup model, writing into the local MinIO object store (backup/minio.yaml), bucket
+# "camunda-backups", prefix "oc-runtime". The Postgres/"secondary storage" half is handled
+# separately by CNPG Barman (postgresql/postgresql-cluster.yaml + backup/scheduled-backup.yaml).
+# MinIO here is an external object store this file only ever points at (via the
+# CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_* env vars below) - swapping it for real cloud storage
+# (S3, GCS, ...) changes only the endpoint/credentials, not the shape of this file.
+#
+# Continuous backups are enabled, scheduled via a CRON expression (not the ISO-8601 duration
+# form, e.g. "PT1H") fired 10 minutes AFTER the Postgres side's own cron in backup/scheduled-backup.yaml
+# (":00" there, ":10" here). CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_SCHEDULE accepts either a cron
+# expression or a duration (see the properties reference linked below) - the cron form is
+# wall-clock anchored, same as CNPG ScheduledBackup's own `schedule` field, so staggering the two
+# by a fixed offset is safe: unlike a duration (a fixed interval timer with no minute-of-hour
+# anchor), cron fires at the same clock time every cycle regardless of broker restarts. The
+# 10-minute gap gives the Postgres backup room to finish before Zeebe's runs, keeping the
+# ordering restore needs (RDBMS backup before the Zeebe backup - see the README's "Backup /
+# restore coordination" section). take-a-backup-now is still available on demand via
+# backup/manual-backup.sh:
+#   https://docs.camunda.io/docs/self-managed/components/orchestration-cluster/core-settings/configuration/properties/#camundadataprimary-storagebackup
+#   https://docs.camunda.io/docs/self-managed/operational-guides/backup-restore/rdbms/rdbms-backup/
+#
+# NOTE: this file is passed LAST on the `helm upgrade -f ...` line, so its `orchestration.env`
+# fully replaces the list from with_monitoring_alerting.yaml (Helm replaces lists, not merges)
+# - that's why the metrics-exporter env var is repeated here.
+#
+# NOTE on env-var names: these follow the documented property path
+# `camunda.data.primary-storage.backup.*` (8.9). If a var isn't picked up, verify the exact
+# spelling against the 8.9 orchestration configuration reference.
+
 orchestration:
     env:
         - name: ZEEBE_BROKER_EXECUTION_METRICS_EXPORTER_ENABLED
           value: "true"
-        - name: CAMUNDA_DATA_BACKUP_STORE
+
+        # --- Primary-storage backup target: local MinIO (S3-compatible) ---
+        - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_STORE
           value: "S3"
-        - name: CAMUNDA_DATA_BACKUP_S3_REGION
-          value: "eu-central-1"
-        - name: CAMUNDA_DATA_BACKUP_S3_ENDPOINT
-          value: "https://s3.eu-central-1.amazonaws.com"
-        - name: CAMUNDA_DATA_BACKUP_S3_ACCESSKEY
+        - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_BUCKETNAME
+          value: "camunda-backups"
+        - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_BASEPATH
+          value: "oc-runtime"
+        - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_ENDPOINT
+          value: "http://minio.minio.svc.cluster.local:9000"
+        - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_REGION
+          value: "eu-central-1"   # MinIO ignores this, but the S3 client requires a value
+        # MinIO serves buckets path-style (http://minio.minio.svc.cluster.local:9000/<bucket>),
+        # not virtual-host-style.
+        - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_FORCEPATHSTYLEACCESS
+          value: "true"
+        - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_ACCESSKEY
           valueFrom:
             secretKeyRef:
-              name: camunda-backup-s3-credentials
-              key: access-key
-        - name: CAMUNDA_DATA_BACKUP_S3_SECRETKEY
+              name: minio-credentials
+              key: ACCESS_KEY_ID
+        - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_SECRETKEY
           valueFrom:
             secretKeyRef:
-              name: camunda-backup-s3-credentials
-              key: secret-key
+              name: minio-credentials
+              key: ACCESS_SECRET_KEY
 
-        - name: CAMUNDA_DATA_BACKUP_S3_BASEPATH
-          value: "oc-runtime"   # base path for Zeebe runtime backups (managed by Camunda)
-        - name: CAMUNDA_DATA_BACKUP_S3_BUCKETNAME
-          value: "jens-88-backups"
-        - name: CAMUNDA_DATA_BACKUP_REPOSITORY_NAME
-          value: "jens-88-backups-webapps"   # Elasticsearch repository name for backupHistory
-
-elasticsearch:
-    master:
-        replicaCount: 1
-    global:
-        kibanaEnabled: false
-    initScripts:
-        init-keystore.sh: |
-            #!/bin/bash
-            set -e
-            
-            echo "Adding S3 access keys to Elasticsearch keystore..."
-            
-            # Add S3 client default keys to the keystore
-            echo "$S3_SECRET_KEY" | elasticsearch-keystore add -f -x s3.client.default.secret_key
-            echo "$S3_ACCESS_KEY" | elasticsearch-keystore add -f -x s3.client.default.access_key
-    extraEnvVars:
-        - name: S3_ACCESS_KEY
-          valueFrom:
-            secretKeyRef:
-              name: camunda-backup-s3-credentials
-              key: access-key
-        - name: S3_SECRET_KEY
-          valueFrom:
-            secretKeyRef:
-              name: camunda-backup-s3-credentials
-              key: secret-key
+        # --- Continuous + scheduled backups with 7-day retention (see header note re: the
+        # 10-minute offset from the Postgres schedule) ---
+        - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_CONTINUOUS
+          value: "true"
+        - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_SCHEDULE
+          # 6-field cron (seconds-leading, like CNPG's `schedule` field below): fires at :10
+          # past every hour, 10 minutes after the Postgres ScheduledBackup's ":00".
+          value: "0 10 * * * *"
+        - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_CHECKPOINTINTERVAL
+          value: "PT15M"         # restore granularity of 15 minutes
+        - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_RETENTION_WINDOW
+          value: "P7D"           # keep 7 days of backups
+        - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_RETENTION_CLEANUPSCHEDULE
+          value: "PT1H"          # prune expired backups hourly
 
 prometheusServiceMonitor:
     enabled: true

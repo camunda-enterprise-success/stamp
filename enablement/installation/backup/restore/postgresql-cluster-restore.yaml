@@ -1,0 +1,157 @@
+# Postgres RESTORE - recreates the pg-camunda CloudNativePG cluster by RECOVERING from the
+# Barman backup in MinIO, instead of bootstrapping an empty database with initdb (which is
+# what ../../postgresql/postgresql-cluster.yaml does for a fresh install).
+#
+# A Barman physical backup restores the ENTIRE instance - both the "camunda" and "keycloak"
+# databases and all roles - so this one apply brings the whole secondary storage back.
+#
+# Use this in place of ../../postgresql/postgresql-cluster.yaml during a restore (see the README Restore
+# section). The cluster keeps the same name (pg-camunda) in the same "postgres" namespace, so
+# every Service DNS reference elsewhere (pg-camunda-rw.postgres.svc.cluster.local) still
+# resolves unchanged.
+#
+#   kubectl apply -f ./backup/restore/postgresql-cluster-restore.yaml   (from installation/)
+#   kubectl wait --for=condition=Ready --timeout=600s cluster/pg-camunda -n postgres
+#
+# The credential Secrets are re-declared here so this file is self-contained after a reset.sh
+# (which deletes the whole postgres namespace). Swap for generated passwords outside a
+# local/dev cluster.
+#
+# IMPORTANT: spec.bootstrap.recovery.recoveryTarget below must be filled in with a bounded
+# point (targetTime by default) before you apply this file - recovering to "latest" WAL is
+# unsafe even when the backup schedules are correctly staggered. See the recoveryTarget
+# comments below and the README's "Backup / restore coordination" section.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: postgres
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: minio-credentials
+  namespace: postgres
+type: Opaque
+stringData:
+  ACCESS_KEY_ID: minioadmin
+  ACCESS_SECRET_KEY: minioadmin
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: camunda-rdbms-credentials
+  namespace: postgres
+type: kubernetes.io/basic-auth
+stringData:
+  username: camunda
+  password: camunda
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: keycloak-rdbms-credentials
+  namespace: postgres
+type: kubernetes.io/basic-auth
+stringData:
+  username: keycloak
+  password: keycloak
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: pg-camunda
+  namespace: postgres
+spec:
+  instances: 1
+  # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql versioning=docker
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.4
+  storage:
+    size: 15Gi
+  bootstrap:
+    # Recover from the Barman backup rather than initialising an empty DB.
+    #
+    # recoveryTarget is REQUIRED here, not optional. Without it, CNPG replays WAL to the
+    # LATEST available point - NOT "at the Postgres :00 backup" or "before the Zeebe :10
+    # checkpoint". Zeebe's restore resolves each retained backup into a RangeEntry(start, end)
+    # - a pair of checkpoint timestamps - converts that into a log-position range, and requires
+    # the RDBMS's recorded exporter position to fall inside
+    #   startInfo.firstLogPosition() <= exportedPosition <= endInfo.checkpointPosition()
+    # for SOME retained range. Staggering the two backup SCHEDULES only guarantees the Zeebe
+    # backup starts after the Postgres one; it says nothing about how far "latest" WAL replay
+    # continues past that. On an idle/low-traffic cluster (typical here), "latest" easily
+    # outruns the newest Zeebe checkpoint, landing the exporter position outside every retained
+    # range - restore then fails with something like:
+    #   No usable range found for partition 1 with from=null, exportedPosition=370.
+    #   Available ranges: [RangeEntry[start=..., end=...]]
+    # See the README "Backup / restore coordination" section for the full explanation.
+    #
+    # Pick ONE of the two options below - do not set both target modes at once.
+    recovery:
+      source: pg-camunda-backup
+      recoveryTarget:
+        # Option A (default): a wall-clock point a couple of minutes after the Postgres
+        # backup's ":00" cron tick and safely before Zeebe's ":10" checkpoint tick. No
+        # `kubectl get backup` lookup needed - just fill in the hour you're restoring
+        # against (minutes must be between :01 and :09), e.g. for a 12:00 UTC cycle:
+        #   targetTime: "2026-07-28 12:02:00.00000+00"
+        # targetTime: "<YYYY-MM-DD HH:02:00.00000+00>"
+        # Option B: pin to one specific, already-completed Postgres Backup object instead of a
+        # wall-clock guess. backupID is the BARMAN backup ID (status.backupId, format
+        # YYYYMMDDTHHMMSS) - NOT the Kubernetes Backup object's metadata.name, which is a
+        # different, operator-assigned string. Get it with:
+        #   kubectl get backup <name> -n postgres -o jsonpath='{.status.backupId}'
+        # (`kubectl get backup -n postgres` lists object names; use one created at/after a
+        # ":00" tick and BEFORE the ":10" Zeebe checkpoint you're restoring against). Comment
+        # out targetTime above if you use this instead.
+        backupID: "20260728T120000"   # status.backupId of pg-camunda-hourly-20260728120000, completed 12:00:02Z, well before the 12:10:01Z Zeebe checkpoint
+        targetImmediate: true
+  externalClusters:
+    # Points at the ORIGINAL cluster's backups in MinIO. serverName must match the source
+    # cluster's name (pg-camunda) as stored in the object store.
+    - name: pg-camunda-backup
+      barmanObjectStore:
+        destinationPath: "s3://camunda-backups/rdbms"
+        endpointURL: "http://minio.minio.svc.cluster.local:9000"
+        serverName: pg-camunda
+        s3Credentials:
+          accessKeyId:
+            name: minio-credentials
+            key: ACCESS_KEY_ID
+          secretAccessKey:
+            name: minio-credentials
+            key: ACCESS_SECRET_KEY
+        wal:
+          compression: gzip
+  managed:
+    roles:
+      - name: keycloak
+        ensure: present
+        login: true
+        passwordSecret:
+          name: keycloak-rdbms-credentials
+  # Ongoing backups for the recovered cluster. serverName is DELIBERATELY different from the
+  # source (pg-camunda-restored, not pg-camunda) so new WAL/backups don't overwrite the
+  # backup we just recovered from.
+  backup:
+    barmanObjectStore:
+      destinationPath: "s3://camunda-backups/rdbms"
+      endpointURL: "http://minio.minio.svc.cluster.local:9000"
+      serverName: pg-camunda-restored
+      s3Credentials:
+        accessKeyId:
+          name: minio-credentials
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: minio-credentials
+          key: ACCESS_SECRET_KEY
+      wal:
+        compression: gzip
+    retentionPolicy: "7d"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi

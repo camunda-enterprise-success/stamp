@@ -54,7 +54,7 @@ Deploy a BPMN process and create process instances so you have real data to veri
 ../utils/create-process-instances.sh
 ```
 
-`deploy-bpmn.sh` uploads `test_diagram.bpmn` via the Zeebe REST API. `create-process-instances.sh` starts 10 instances of that process. Both scripts read `ZEEBE_URL` from the environment (defaults to `http://localhost:8080`).
+`deploy-bpmn.sh` uploads `test_diagram.bpmn` via `c8ctl deploy`. `create-process-instances.sh` starts 10 instances of that process via `c8ctl create pi`. Both scripts use c8ctl's default `local` profile, which targets `http://localhost:8080/v2`.
 
 ### Verify in Operate
 
@@ -121,15 +121,19 @@ helm upgrade --install camunda camunda/camunda-platform \
 
 ### Create some test data
 
-With an external Keycloak you need an access token to authenticate against the Zeebe REST API.
+With an external Keycloak you need a c8ctl profile carrying OAuth client credentials, matching the OIDC config in `./medium/11.12.3-values-medium.yml`:
 
 ```bash
-export AUTH_TOKEN=$(../utils/get-token.sh)
-../utils/deploy-bpmn.sh
-../utils/create-process-instances.sh
+c8ctl add profile medium --baseUrl=http://localhost:8080/v2 \
+  --clientId=oc-client --clientSecret=gHSCIDc7liPeFxMlBuouPK310N6oPVQj \
+  --oAuthUrl=https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc/protocol/openid-connect/token \
+  --audience=oc-client
+
+../utils/deploy-bpmn.sh --profile=medium
+../utils/create-process-instances.sh --profile=medium
 ```
 
-`get-token.sh` fetches a bearer token via OAuth2 client credentials grant from the configured Keycloak instance. The token is passed to the deployment and instance-creation scripts via the `AUTH_TOKEN` environment variable.
+`c8ctl add profile` registers the client credentials once; every subsequent `--profile=medium` call resolves an access token via OAuth2 client-credentials grant against the configured Keycloak instance.
 
 ### Upgrade to Camunda 8.8
 

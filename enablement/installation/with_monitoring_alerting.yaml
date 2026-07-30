@@ -1,3 +1,15 @@
+# Layer 3 (+monitoring) - additive layer on top of minimal_setup.yaml (+ with_permissions.yaml),
+# enabling Zeebe's execution-metrics exporter and a ServiceMonitor so Prometheus can scrape it.
+# Applied via an extra `-f` flag - see the README's "Design Intent" section and the Architecture
+# Overview table.
+#
+# The monitoring stack itself is an external dependency: kube-prometheus-stack (Prometheus,
+# Grafana, AlertManager, and the Prometheus Operator that reads the ServiceMonitor this file
+# turns on) is installed independently (manifests/values under monitoring/, into the "default"
+# namespace per the README) before this file is ever applied. Nothing here deploys or owns
+# Prometheus - it only makes Camunda's metrics available for an already-running Prometheus to
+# scrape.
+
 orchestration:
   env:
     - name: ZEEBE_BROKER_EXECUTION_METRICS_EXPORTER_ENABLED

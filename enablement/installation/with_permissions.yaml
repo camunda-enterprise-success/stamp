@@ -1,3 +1,14 @@
+# Layer 2 (+permissions) - additive layer on top of minimal_setup.yaml, adding OIDC-based
+# authentication and fine-grained authorization (roles, mapping rules, authorizations). Applied
+# via an extra `-f` flag alongside minimal_setup.yaml - see the README's "Design Intent" section
+# and the Architecture Overview table.
+#
+# The OIDC provider itself is an external dependency, not something this file or the
+# camunda-platform chart provisions: this guide points it at an in-cluster Keycloak
+# (keycloak/keycloak-instance.yaml), but any OIDC-compliant IdP (Entra ID, Okta, Auth0, ...)
+# works the same way from Camunda's perspective - only the endpoints/clientId/secret below
+# change, never the shape of this file.
+
 global:
   security:
     authentication:
@@ -9,7 +20,7 @@ orchestration:
       defaultRoles:
         admin:
           users:
-            - "jens-admin"
+            - "admin"
       ## @param orchestration.security.initialization.mappingRules defines the mapping rules when connected to an OIDC provider.
       mappingRules:
         - mappingRuleId: operator-role
@@ -21,9 +32,6 @@ orchestration:
         - mappingRuleId: benchmark-client
           claimName: client_id
           claimValue: benchmark-client
-        - mappingRuleId: connectors-client
-          claimName: client_id
-          claimValue: connectors-client
       ## @param orchestration.security.initialization.authorizations defines the authorizations for mapping rules.
       authorizations:
         # Operator role authorizations
@@ -88,20 +96,6 @@ orchestration:
           resourceId: "*"
           permissions:
             - CREATE
-        # Connectors-client authorizations
-        - ownerType: MAPPING_RULE
-          ownerId: connectors-client
-          resourceType: PROCESS_DEFINITION
-          resourceId: "*"
-          permissions:
-            - CREATE_PROCESS_INSTANCE
-            - UPDATE_PROCESS_INSTANCE
-        - ownerType: MAPPING_RULE
-          ownerId: connectors-client
-          resourceType: RESOURCE
-          resourceId: "*"
-          permissions:
-            - CREATE
 
     authentication:
       oidc:
@@ -110,13 +104,18 @@ orchestration:
         ## @param orchestration.security.authentication.oidc.audience defines the audience, which is used by Orchestration Cluster.
         audience: oc-client
         secret:
-          existingSecret: "jens-keycloak-client-secrets"
+          existingSecret: "camunda-keycloak-client-secrets"
           existingSecretKey: "oc-secret"
-        issuer: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc
-        issuerBackendUrl: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc
-        tokenUrl: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc/protocol/openid-connect/token
-        jwksUrl: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc/protocol/openid-connect/certs
-        publicIssuerUrl: https://keycloak.consulting-sandbox.camunda.cloud/realms/jens-keycloak-as-oidc
+        # All five URLs are the SAME in-cluster Keycloak realm URL (keycloak/keycloak-instance.yaml +
+        # keycloak/create-realm-and-clients.sh). The fixed cluster-DNS hostname means the `iss` claim is
+        # identical whether the token is validated by an in-cluster pod (via CoreDNS) or your
+        # browser (via the /etc/hosts entry + port-forward). Update the realm segment if you
+        # rename the realm in keycloak/create-realm-and-clients.sh.
+        issuer: http://keycloak-service.keycloak.svc.cluster.local:18080/auth/realms/camunda-platform
+        issuerBackendUrl: http://keycloak-service.keycloak.svc.cluster.local:18080/auth/realms/camunda-platform
+        tokenUrl: http://keycloak-service.keycloak.svc.cluster.local:18080/auth/realms/camunda-platform/protocol/openid-connect/token
+        jwksUrl: http://keycloak-service.keycloak.svc.cluster.local:18080/auth/realms/camunda-platform/protocol/openid-connect/certs
+        publicIssuerUrl: http://keycloak-service.keycloak.svc.cluster.local:18080/auth/realms/camunda-platform
         type: "GENERIC"
         redirectUrl: "http://localhost:8080/"
         # Configure the claim in the access token to identify a client, default: client_id
