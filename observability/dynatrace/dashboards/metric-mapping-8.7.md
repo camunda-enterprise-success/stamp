@@ -1,6 +1,6 @@
 # Metric mapping — Camunda 8.7 Zeebe, Prometheus → Dynatrace (OTLP push)
 
-**Related config:** [`runbook-dynatrace.md`](runbook-dynatrace.md) · dashboards `8.7-zeebe-0*.json`
+**Related config:** [`../runbook-dynatrace.md`](../runbook-dynatrace.md) · dashboards `8.7-zeebe-0*.json`
 
 This is the reference used to port `grafana_original_baseline/8.7.35-zeebe.json` to Dynatrace.
 It assumes Camunda's **native OTLP metrics push** (`management.otlp.metrics.export.enabled=true`,

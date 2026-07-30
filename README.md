@@ -199,7 +199,7 @@ metric keys are the dotted Micrometer meter names (`zeebe.stream.processor.recor
 Import via **Dashboards → Upload**. Before that, confirm which ingest path the tenant is on and
 that histograms arrived as histograms — the runbook's step 1 has the discovery query. Every
 translation that changed a panel's meaning is recorded on the tile itself and in
-[`metric-mapping-8.7.md`](observability/dynatrace/metric-mapping-8.7.md).
+[`metric-mapping-8.7.md`](observability/dynatrace/dashboards/metric-mapping-8.7.md).
 
 **Not included:** Davis metric events / alerting, an 8.8 port, and dashboards for
 Operate, Tasklist, Optimize or Connectors.

@@ -2,8 +2,8 @@
 
 **Originals:** [`prometheus-grafana/prometheus-alerts/`](../prometheus-grafana/prometheus-alerts/)
 **Same exercise for Datadog:** [`datadog_alerts/`](../datadog_alerts/)
-**Related config:** [`dynatrace/metric-mapping-8.7.md`](../dynatrace/metric-mapping-8.7.md) ·
-[`dynatrace/runbook-dynatrace.md`](../dynatrace/runbook-dynatrace.md)
+**Related config:** [`dynatrace/metric-mapping-8.7.md`](../dashboards/metric-mapping-8.7.md) ·
+[`dynatrace/runbook-dynatrace.md`](../runbook-dynatrace.md)
 
 This ports the same 20 Prometheus rules already ported to `datadog_alerts/` — this time to
 Dynatrace, targeting the same ingest path as the `dynatrace/` dashboards: Camunda's **native
@@ -31,7 +31,7 @@ concept) unless the window itself is shorter than 5 samples.
 
 - **Zeebe/Atomix/JVM metrics** (native Micrometer OTLP push): dotted keys, e.g.
   `zeebe.stream.processor.records.total` — taken from
-  [`dynatrace/metric-mapping-8.7.md`](../dynatrace/metric-mapping-8.7.md#full-metric-mapping).
+  [`dynatrace/metric-mapping-8.7.md`](../dashboards/metric-mapping-8.7.md#full-metric-mapping).
 - **Elasticsearch metrics**: Elasticsearch is not a Micrometer app; its `elasticsearch_exporter`
   Prometheus endpoint reaches Dynatrace (if at all) through an OTel Collector's `prometheus`
   receiver, which — per the runbook's own step 1 — **keeps the underscored Prometheus spelling**

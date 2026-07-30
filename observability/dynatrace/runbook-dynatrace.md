@@ -1,6 +1,6 @@
 # 📊 Runbook: Camunda 8.7 Zeebe monitoring in Dynatrace
 
-**Related config:** [`camunda-otlp-values.yaml`](camunda-otlp-values.yaml) · [`otel-collector-dynatrace.yaml`](otel-collector-dynatrace.yaml) · [`metric-mapping-8.7.md`](metric-mapping-8.7.md)
+**Related config:** [`dashboards/camunda-otlp-values.yaml`](dashboards/camunda-otlp-values.yaml) · [`dashboards/otel-collector-dynatrace.yaml`](dashboards/otel-collector-dynatrace.yaml) · [`dashboards/metric-mapping-8.7.md`](dashboards/metric-mapping-8.7.md)
 
 ## 🔭 Overview
 
@@ -10,14 +10,14 @@ Self-Managed cluster whose metrics reach Dynatrace over **OTLP**.
 
 | Dashboard | Sections | Data tiles |
 |---|---|---|
-| [`8.7-zeebe-01-overview.json`](8.7-zeebe-01-overview.json) | General Overview, Start up, Cluster | 22 |
-| [`8.7-zeebe-02-processing.json`](8.7-zeebe-02-processing.json) | Processing, Throughput, Latency, Backpressure | 46 |
-| [`8.7-zeebe-03-storage.json`](8.7-zeebe-03-storage.json) | Journal, Logstream, RocksDB, Snapshots | 52 |
-| [`8.7-zeebe-04-cluster.json`](8.7-zeebe-04-cluster.json) | Raft, Messaging, gRPC, Gateway, Backups, SWIM, DNS | 47 |
-| [`8.7-zeebe-05-resources.json`](8.7-zeebe-05-resources.json) | Memory, CPU, IO, ES Exporter, Actor, Worker Jobs, Job push/stream | 36 |
+| [`dashboards/8.7-zeebe-01-overview.json`](dashboards/8.7-zeebe-01-overview.json) | General Overview, Start up, Cluster | 22 |
+| [`dashboards/8.7-zeebe-02-processing.json`](dashboards/8.7-zeebe-02-processing.json) | Processing, Throughput, Latency, Backpressure | 46 |
+| [`dashboards/8.7-zeebe-03-storage.json`](dashboards/8.7-zeebe-03-storage.json) | Journal, Logstream, RocksDB, Snapshots | 52 |
+| [`dashboards/8.7-zeebe-04-cluster.json`](dashboards/8.7-zeebe-04-cluster.json) | Raft, Messaging, gRPC, Gateway, Backups, SWIM, DNS | 47 |
+| [`dashboards/8.7-zeebe-05-resources.json`](dashboards/8.7-zeebe-05-resources.json) | Memory, CPU, IO, ES Exporter, Actor, Worker Jobs, Job push/stream | 36 |
 
 203 of the 211 baseline panels are ported. The 8 that are not, and the 59 that changed meaning,
-are listed in [`metric-mapping-8.7.md`](metric-mapping-8.7.md#panels-that-changed-meaning) and in
+are listed in [`dashboards/metric-mapping-8.7.md`](dashboards/metric-mapping-8.7.md#panels-that-changed-meaning) and in
 each tile's own description.
 
 > ℹ️ **Why five files.** Dynatrace Platform Dashboards have no collapsible rows — every tile is
@@ -40,7 +40,7 @@ timeseries p99 = percentile(zeebe.stream.processor.latency, 99), by: {partition}
 `otlphttp`), the keys keep the Prometheus spelling (`zeebe_stream_processor_records_total`,
 `zeebe_stream_processor_latency_seconds`) and **none of these dashboards will return data**.
 Check which path you are on before anything else — step 1 below — and convert with the table in
-[`metric-mapping-8.7.md`](metric-mapping-8.7.md#full-metric-mapping) if needed.
+[`dashboards/metric-mapping-8.7.md`](dashboards/metric-mapping-8.7.md#full-metric-mapping) if needed.
 
 ---
 
@@ -92,7 +92,7 @@ Also check what you got for the histograms:
 
 ## 📡 Step 2 — Configure ingest
 
-Merge [`camunda-otlp-values.yaml`](camunda-otlp-values.yaml) into your Camunda Helm values.
+Merge [`dashboards/camunda-otlp-values.yaml`](dashboards/camunda-otlp-values.yaml) into your Camunda Helm values.
 Four settings there are load-bearing; each one fails **silently** if wrong:
 
 | # | Setting | Why |
@@ -106,7 +106,7 @@ Then enable **Advanced OTLP metric dimensions** in the environment
 (*Settings → Metrics → OpenTelemetry / OTLP*). Without it: explicit-bucket histograms degrade to
 counters, dimension keys are lowercased, and limits drop to 50 dimensions / 100-character keys.
 
-`otel-collector-dynatrace.yaml` is optional — add the gateway if you want a single egress point,
+`dashboards/otel-collector-dynatrace.yaml` is optional — add the gateway if you want a single egress point,
 `k8sattributes` enrichment, or queue buffering. Metric names are unchanged either way.
 
 ### ✅ Verification checklist
@@ -141,7 +141,7 @@ timeseries p99 = percentile(zeebe.stream.processor.latency, 99), by: {partition}
 
 ## 📈 Step 3 — Import the dashboards
 
-1. **Dashboards** app → left panel → **Upload** → select `8.7-zeebe-01-overview.json`.
+1. **Dashboards** app → left panel → **Upload** → select `dashboards/8.7-zeebe-01-overview.json`.
 2. Repeat for the other four files.
 3. Open each one and confirm the `Namespace`, `Pod` and `Partition` dropdowns are populated.
 
@@ -168,7 +168,7 @@ a schema check. To edit in place afterwards: dashboard name menu → **Edit JSON
 ## 🧭 What the tiles are, and where they differ from Grafana
 
 Every tile that deviates says so in its own **description** field, and all deviations are
-catalogued in [`metric-mapping-8.7.md`](metric-mapping-8.7.md#panels-that-changed-meaning).
+catalogued in [`dashboards/metric-mapping-8.7.md`](dashboards/metric-mapping-8.7.md#panels-that-changed-meaning).
 The classes of deviation:
 
 | Class | Count | What changed |
@@ -197,7 +197,7 @@ The shipped filters use `k8s.namespace.name`, `k8s.pod.name` and `partition` onl
 as a resource attribute. If you monitor several Camunda clusters in one tenant:
 
 1. Set `MANAGEMENT_OPENTELEMETRY_RESOURCE_ATTRIBUTES_K8S_CLUSTER_NAME` (already present in
-   `camunda-otlp-values.yaml`).
+   `dashboards/camunda-otlp-values.yaml`).
 2. Add a `Cluster` variable to each dashboard (copy the `Namespace` variable, swap the dimension).
 3. Either add `in(k8s.cluster.name, array($Cluster))` to the tile filters, or — simpler — define
    a **segment** per cluster and apply it to the dashboard; segments layer onto every tile query
@@ -224,8 +224,8 @@ dashboard to keep the change.
 - [ ] Decide whether to keep `management.prometheus.metrics.export.enabled=true`; leaving it on
       costs little and keeps the Grafana baseline usable as a reference
 - [ ] Davis metric events for the signals in `Metrics _ Alerts 8.7 -> 8.8.xlsx` are ported in
-      [`dynatrace_alerts/`](../dynatrace_alerts/) (`datadog_alerts/` shows the equivalent Datadog
-      set) — see [`dynatrace_alerts/alert-mapping-8.7.md`](../dynatrace_alerts/alert-mapping-8.7.md)
+      [`alerts/`](alerts/) (`datadog_alerts/` shows the equivalent Datadog
+      set) — see [`alerts/alert-mapping-8.7.md`](alerts/alert-mapping-8.7.md)
       for the conversion notes and caveats
 
 ---
@@ -237,7 +237,7 @@ dashboard to keep the change.
 | A dashboard does not render at all after upload | Schema validation failure (1.344+) | Re-upload the unmodified file; if you edited it, check every tile still has `title`, `query`, `visualization`, `visualizationSettings`, `querySettings` and no `subType` |
 | Every tile is empty, variables are empty too | Metrics are not arriving, or keys are underscored | Run step 1's discovery query |
 | Counters and latency tiles empty, gauges fine | Cumulative temporality — Dynatrace drops cumulative counters and histograms | Set `AGGREGATIONTEMPORALITY=DELTA`, restart the pods |
-| Variables list nothing, but metrics exist | `k8s.pod.name` / `k8s.namespace.name` resource attributes not set | Apply the resource attributes from `camunda-otlp-values.yaml` |
+| Variables list nothing, but metrics exist | `k8s.pod.name` / `k8s.namespace.name` resource attributes not set | Apply the resource attributes from `dashboards/camunda-otlp-values.yaml` |
 | Latency values ~1000× too large | `base-time-unit` still milliseconds | Set `BASETIMEUNIT=SECONDS` |
 | All percentile tiles error | Missing *Metrics powered by Grail* rate card, or the histogram was ingested as a counter | Check `kind` in step 1; enable Advanced OTLP metric dimensions and `explicit_bucket_histogram` |
 | Percentile tiles empty but `kind = histogram` | Exponential histograms: Dynatrace ingests min/max/sum/count but no buckets | Set `HISTOGRAMFLAVOR=explicit_bucket_histogram` |
