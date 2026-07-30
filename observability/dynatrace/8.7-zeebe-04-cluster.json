@@ -84,7 +84,7 @@
     "4": {
       "type": "data",
       "title": "Total install requests send",
-      "query": "timeseries send = avg(atomix.raft.messages.send, filter:{type == \"InstallRequest\"}),\n  by: {k8s.pod.name, partition, type, to},\n  filter: {in(k8s.namespace.name, array($Namespace))}",
+      "query": "timeseries send = sum(atomix.raft.messages.send, filter:{type == \"InstallRequest\"}),\n  by: {k8s.pod.name, partition, type, to},\n  filter: {in(k8s.namespace.name, array($Namespace))}\n| fieldsAdd send = arrayCumulativeSum(send)",
       "visualization": "lineChart",
       "visualizationSettings": {
         "autoSelectVisualization": false,
@@ -113,7 +113,7 @@
         "defaultSamplingRatio": 10,
         "enableSampling": false
       },
-      "description": "Shows the total count of send install requests from the leader to the followers"
+      "description": "Shows the total count of send install requests from the leader to the followers\n\nCounters arrive from Camunda as OTLP **delta** values (Dynatrace does not ingest cumulative counters), so each column is cumulated over the selected timeframe to reproduce Grafana's monotonic counter view."
     },
     "5": {
       "type": "data",
@@ -921,7 +921,7 @@
     "30": {
       "type": "data",
       "title": "Total gRPC requests",
-      "query": "timeseries requests = sum(zeebe.gateway.total.requests),\n  by: {requestType},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "query": "timeseries requests = sum(zeebe.gateway.total.requests),\n  by: {requestType},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}\n| fieldsAdd requests = arrayCumulativeSum(requests)",
       "visualization": "lineChart",
       "visualizationSettings": {
         "autoSelectVisualization": false,
@@ -950,7 +950,7 @@
         "defaultSamplingRatio": 10,
         "enableSampling": false
       },
-      "description": "Shows counts of all gRPC messages, which have been sent to the Zeebe Cluster.\n\nPorted from Grafana: Replaces the `label_replace` + `or on(method, statusCode)` join with the `zeebe.gateway.total.requests` counter (see the note on tile 62)."
+      "description": "Shows counts of all gRPC messages, which have been sent to the Zeebe Cluster.\n\nPorted from Grafana: Replaces the `label_replace` + `or on(method, statusCode)` join with the `zeebe.gateway.total.requests` counter (see the note on tile 62). The delta counter is cumulated over the timeframe to give the running total the original panel showed."
     },
     "31": {
       "type": "data",
@@ -1230,7 +1230,7 @@
     "41": {
       "type": "data",
       "title": "Completed Backups",
-      "query": "timeseries backup_operations = max(zeebe.backup.operations.total, filter:{operation == \"take\" and result == \"completed\"}),\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}\n| fieldsAdd value = arrayLast(backup_operations)\n| fields partition, value",
+      "query": "timeseries backup_operations = sum(zeebe.backup.operations.total, filter:{operation == \"take\" and result == \"completed\"}),\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}\n| fieldsAdd backup_operations = arrayCumulativeSum(backup_operations)\n| fieldsAdd value = arrayLast(backup_operations)\n| fields partition, value",
       "visualization": "honeycomb",
       "visualizationSettings": {
         "autoSelectVisualization": false,
@@ -1254,12 +1254,13 @@
         "maxResultMegaBytes": 1,
         "defaultSamplingRatio": 10,
         "enableSampling": false
-      }
+      },
+      "description": "Counters arrive from Camunda as OTLP **delta** values (Dynatrace does not ingest cumulative counters), so each column is cumulated over the selected timeframe to reproduce Grafana's monotonic counter view."
     },
     "42": {
       "type": "data",
       "title": "Status Query Latency",
-      "query": "timeseries {\n    p50 = percentile(zeebe.backup.operations.latency, 50, filter:{operation == \"status\" and operation == \"status\"}),\n    p90 = percentile(zeebe.backup.operations.latency, 90, filter:{operation == \"status\" and operation == \"status\"}),\n    p99 = percentile(zeebe.backup.operations.latency, 99, filter:{operation == \"status\" and operation == \"status\"})\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "query": "timeseries {\n    p50 = percentile(zeebe.backup.operations.latency, 50, filter:{operation == \"status\"}),\n    p90 = percentile(zeebe.backup.operations.latency, 90, filter:{operation == \"status\"}),\n    p99 = percentile(zeebe.backup.operations.latency, 99, filter:{operation == \"status\"})\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))},\n  union: true",
       "visualization": "lineChart",
       "visualizationSettings": {
         "autoSelectVisualization": false,
@@ -1351,7 +1352,7 @@
     "45": {
       "type": "data",
       "title": "Failed Backups",
-      "query": "timeseries backup_operations = max(zeebe.backup.operations.total, filter:{operation == \"take\" and result == \"failed\"}),\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}\n| fieldsAdd value = arrayLast(backup_operations)\n| fields partition, value",
+      "query": "timeseries backup_operations = sum(zeebe.backup.operations.total, filter:{operation == \"take\" and result == \"failed\"}),\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}\n| fieldsAdd backup_operations = arrayCumulativeSum(backup_operations)\n| fieldsAdd value = arrayLast(backup_operations)\n| fields partition, value",
       "visualization": "honeycomb",
       "visualizationSettings": {
         "autoSelectVisualization": false,
@@ -1375,12 +1376,13 @@
         "maxResultMegaBytes": 1,
         "defaultSamplingRatio": 10,
         "enableSampling": false
-      }
+      },
+      "description": "Counters arrive from Camunda as OTLP **delta** values (Dynatrace does not ingest cumulative counters), so each column is cumulated over the selected timeframe to reproduce Grafana's monotonic counter view."
     },
     "46": {
       "type": "data",
       "title": "Total Checkpoint Records",
-      "query": "timeseries checkpoint_records = max(zeebe.checkpoint.records.total),\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))}",
+      "query": "timeseries checkpoint_records = sum(zeebe.checkpoint.records.total),\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))}\n| fieldsAdd checkpoint_records = arrayCumulativeSum(checkpoint_records)",
       "visualization": "lineChart",
       "visualizationSettings": {
         "autoSelectVisualization": false,
@@ -1408,7 +1410,8 @@
         "maxResultMegaBytes": 1,
         "defaultSamplingRatio": 10,
         "enableSampling": false
-      }
+      },
+      "description": "Counters arrive from Camunda as OTLP **delta** values (Dynatrace does not ingest cumulative counters), so each column is cumulated over the selected timeframe to reproduce Grafana's monotonic counter view."
     },
     "47": {
       "type": "data",
@@ -1475,7 +1478,7 @@
     "50": {
       "type": "data",
       "title": "Swim Probe Latency",
-      "query": "timeseries {\n    p50 = percentile(zeebe.messaging.request.response.latency, 50, filter:{in(topic, \"atomix-membership-probe-request\") and in(topic, \"atomix-membership-probe-request\")}),\n    p90 = percentile(zeebe.messaging.request.response.latency, 90, filter:{in(topic, \"atomix-membership-probe-request\") and in(topic, \"atomix-membership-probe-request\")}),\n    p99 = percentile(zeebe.messaging.request.response.latency, 99, filter:{in(topic, \"atomix-membership-probe-request\") and in(topic, \"atomix-membership-probe-request\")})\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "query": "timeseries {\n    p50 = percentile(zeebe.messaging.request.response.latency, 50, filter:{in(topic, \"atomix-membership-probe-request\")}),\n    p90 = percentile(zeebe.messaging.request.response.latency, 90, filter:{in(topic, \"atomix-membership-probe-request\")}),\n    p99 = percentile(zeebe.messaging.request.response.latency, 99, filter:{in(topic, \"atomix-membership-probe-request\")})\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))},\n  union: true",
       "visualization": "lineChart",
       "visualizationSettings": {
         "autoSelectVisualization": false,

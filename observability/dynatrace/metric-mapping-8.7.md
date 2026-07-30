@@ -88,26 +88,28 @@ monotonic counter add `arrayCumulativeSum` and say so in the tile description.
 
 ## Panels that changed meaning
 
-### Rewritten (10)
+### Rewritten (15)
 
-- **Pod Restarts** (`General Overview`, panel 116): Grafana derived restarts from `1 - kube_pod_container_status_ready`; this uses the Dynatrace built-in container restart counter instead (requires Dynatrace Kubernetes monitoring).
+- **Pod Restarts** (`General Overview`, panel 116): Grafana derived restarts from `1 - kube_pod_container_status_ready`; this uses the Dynatrace built-in container restart counter instead, so the tile shows restart events per interval rather than a readiness flag (requires Dynatrace Kubernetes monitoring).
 - **Requests handled by Gateway per sec** (`General Overview`, panel 62): Grafana joined the dead `grpc_server_handled_total` with the gRPC histogram's `_count` via `label_replace`. Dynatrace cannot read a histogram's observation count, so this uses the `zeebe.gateway.total.requests` counter split by requestType.
 - **Cluster Load** (`General Overview`, panel 612): `avg(load > 0)`: the `> 0` filter excludes partitions with no measured load, so partitions are filtered before averaging. Shows no data when flow-control write rate limits are disabled, exactly like the original.
 - **Processing Error Handling Phase** (`Processing`, panel 602): Grafana rendered this as a state timeline over `> 0`. Dynatrace has no state-timeline visualization, so the numeric phase is charted and series that never leave NO_ERROR are filtered out.
 - **Backpressure Requests Limit** (`Backpressure`, panel 568): Grafana restricted this to Raft leaders with `and on(...) (atomix_role == 3)`. DQL has no cross-metric join filter, so all pods are included and all-zero series (followers, which report no limit) are filtered out instead.
 - **RocksDB Memory usage** (`RocksDB`, panel 154): Four-metric sum, as in the original. The `num_keys * 10` term is Grafana's rough estimate of key-count memory and is kept verbatim; the original applied `rate()` to that gauge, which was a bug, so the gauge value is used directly.
-- **Total gRPC requests** (`gRPC`, panel 26): Replaces the `label_replace` + `or on(method, statusCode)` join with the `zeebe.gateway.total.requests` counter (see the note on tile 62).
+- **Total gRPC requests** (`gRPC`, panel 26): Replaces the `label_replace` + `or on(method, statusCode)` join with the `zeebe.gateway.total.requests` counter (see the note on tile 62). The delta counter is cumulated over the timeframe to give the running total the original panel showed.
 - **gRPC requests per second (range = 1m)** (`gRPC`, panel 27): Replaces the `label_replace` + `or on(method, statusCode)` join; adds the failed-request counter so the status dimension of the original panel is still represented.
 - **Take Backup Latency** (`Backups`, panel 325): Grafana divided the histogram's `_sum` by its `_count` over a hard-coded 1h window; on this ingest path the histogram carries both, so `avg()` is used and the tile follows the dashboard timeframe instead of a fixed 1h.
 - **GC Count per second** (`Memory`, panel 285): Grafana rated the GC histogram's observation count (`jvm_gc_pause_seconds_count`). Grail cannot query a histogram's observation count, so this charts GC pause duration percentiles instead.
 - **GC proportion per second** (`Memory`, panel 286): Time spent in GC per second, from the sum of the GC pause histogram. Verify in your tenant that `sum()` over a histogram returns the sum of observations; if it does not, use `percentile(jvm.gc.pause, 99)` as a proxy.
 - **CPU Throttling (AVG)** (`CPU`, panel 614): Grafana computed throttled_periods / periods from cAdvisor. `dt.kubernetes.container.cpu_throttled` is already the throttling ratio (requires Dynatrace Kubernetes monitoring).
+- **JVM Thread count** (`CPU`, panel 294): Grafana used four targets, two of them pre-Micrometer names that are dead in 8.7. This charts live and daemon threads plus their difference in one tile.
 - **Elasticsearch Exporter (Flush Failure Rate)** (`Elasticsearch Exporter`, panel 255): Grafana divided failed flushes by the flush histogram's observation count. Grail cannot query a histogram's observation count, so this shows failed flushes per second rather than a failure ratio.
+- **Number Jobs in "Buffer"** (`Worker Jobs`, panel 564): Both counters arrive as OTLP delta values, so each is cumulated over the timeframe before subtracting -- subtracting the raw deltas would show backlog *growth*, not backlog size. Requires the job worker application to export OTLP as well; the brokers do not emit `zeebe.client.*`.
 
-### Partially ported (9)
+### Partially ported (6)
 
-Targets listed here were dropped from an otherwise complete tile; each tile names the dropped
-query in its description.
+Targets listed here were dropped from an otherwise complete tile; each tile names the
+dropped query in its description.
 
 - **Atomix Partition Server Startup time** (`Start up`, panel 170): atomix_partition_server_startup_time: only atomix.partition.server.bootstrap.time / .join.time exist in 8.7
 - **Create Process Instance Latency (gRPC)** (`gRPC`, panel 22): pre-Micrometer name, dead in 8.7: grpc_server_handled_latency_seconds_bucket
@@ -115,9 +117,6 @@ query in its description.
 - **Complete Job Latency (gRPC)** (`gRPC`, panel 24): pre-Micrometer name, dead in 8.7: grpc_server_handled_latency_seconds_bucket
 - **JVM Memory usage** (`Memory`, panel 98): pre-Micrometer name, dead in 8.7: jvm_memory_bytes_used
 - **Buffer Pool Memory Usage** (`Memory`, panel 35): pre-Micrometer name, dead in 8.7: jvm_buffer_pool_used_bytes
-- **JVM Thread count** (`CPU`, panel 294): pre-Micrometer name, dead in 8.7: jvm_threads_current
-- **JVM Thread count** (`CPU`, panel 294): pre-Micrometer name, dead in 8.7: jvm_threads_daemon
-- **JVM Thread count** (`CPU`, panel 294): not merged into this tile (binary expression)
 
 ### Dropped entirely (8)
 

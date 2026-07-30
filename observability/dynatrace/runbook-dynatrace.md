@@ -16,7 +16,7 @@ Self-Managed cluster whose metrics reach Dynatrace over **OTLP**.
 | [`8.7-zeebe-04-cluster.json`](8.7-zeebe-04-cluster.json) | Raft, Messaging, gRPC, Gateway, Backups, SWIM, DNS | 47 |
 | [`8.7-zeebe-05-resources.json`](8.7-zeebe-05-resources.json) | Memory, CPU, IO, ES Exporter, Actor, Worker Jobs, Job push/stream | 36 |
 
-203 of the 211 baseline panels are ported. The 8 that are not, and the 57 that changed meaning,
+203 of the 211 baseline panels are ported. The 8 that are not, and the 59 that changed meaning,
 are listed in [`metric-mapping-8.7.md`](metric-mapping-8.7.md#panels-that-changed-meaning) and in
 each tile's own description.
 
@@ -174,10 +174,10 @@ The classes of deviation:
 | Class | Count | What changed |
 |---|---|---|
 | Heatmap → percentiles | 38 | Dynatrace cannot render a bucket distribution over time, so each histogram heatmap is a p50/p90/p99 line chart. Estimated percentiles are accurate to ~2.2 % and are not guaranteed to match PromQL's `histogram_quantile`. |
-| Rewritten | 10 | No DQL equivalent for the original expression (`label_replace`, `and on(...)`, cAdvisor ratios). |
-| Partially ported | 9 | A dead pre-Micrometer query was dropped from a tile that is otherwise complete. |
+| Rewritten | 15 | No DQL equivalent for the original expression (`label_replace`, `and on(...)`, cAdvisor ratios, histogram observation counts). |
+| Partially ported | 6 | A dead pre-Micrometer query was dropped from a tile that is otherwise complete. |
 | Dropped | 8 | The metric does not exist on this path at all. |
-| Delta-counter cumulation | 13 | Grafana charted monotonic Prometheus counters; delta-ingested counters are cumulated over the timeframe with `arrayCumulativeSum`. |
+| Delta-counter cumulation | 11 | Grafana charted monotonic Prometheus counters; delta-ingested counters are cumulated over the timeframe with `arrayCumulativeSum`. |
 
 The three deviations most worth knowing before you rely on a tile:
 

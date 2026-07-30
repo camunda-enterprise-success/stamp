@@ -326,7 +326,7 @@
     "12": {
       "type": "data",
       "title": "CPU usage",
-      "query": "timeseries cpu_usage = sum(dt.kubernetes.container.cpu_usage),\n  by: {k8s.pod.name, k8s.container.name, service},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "query": "timeseries cpu_usage = sum(dt.kubernetes.container.cpu_usage),\n  by: {k8s.pod.name, k8s.container.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
       "visualization": "lineChart",
       "visualizationSettings": {
         "autoSelectVisualization": false,
@@ -359,7 +359,7 @@
     "13": {
       "type": "data",
       "title": "JVM Thread count",
-      "query": "timeseries daemon = sum(jvm.threads.daemon),\n  by: {k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "query": "timeseries {\n    live = sum(jvm.threads.live),\n    daemon = sum(jvm.threads.daemon)\n  },\n  by: {k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))},\n  union: true\n| fieldsAdd non_daemon = live[] - daemon[]",
       "visualization": "lineChart",
       "visualizationSettings": {
         "autoSelectVisualization": false,
@@ -388,7 +388,7 @@
         "defaultSamplingRatio": 10,
         "enableSampling": false
       },
-      "description": "Current thread count of a JVM, aggregated by namespace and pod\n\nDropped query: pre-Micrometer name, dead in 8.7: jvm_threads_current\n\nDropped query: pre-Micrometer name, dead in 8.7: jvm_threads_daemon\n\nDropped query: not merged into this tile (binary expression)"
+      "description": "Current thread count of a JVM, aggregated by namespace and pod\n\nPorted from Grafana: Grafana used four targets, two of them pre-Micrometer names that are dead in 8.7. This charts live and daemon threads plus their difference in one tile."
     },
     "14": {
       "type": "markdown",
@@ -952,7 +952,7 @@
     "35": {
       "type": "data",
       "title": "Number Jobs in \"Buffer\"",
-      "query": "timeseries activated = sum(zeebe.client.worker.job.activated),\n  by: {k8s.namespace.name, workerName, jobType},\n  filter: {in(k8s.namespace.name, array($Namespace))}\n| fieldsAdd activated = arrayCumulativeSum(activated)",
+      "query": "timeseries {\n    activated = sum(zeebe.client.worker.job.activated, default:0),\n    handled = sum(zeebe.client.worker.job.handled, default:0)\n  },\n  by: {k8s.namespace.name, workerName, jobType},\n  filter: {in(k8s.namespace.name, array($Namespace))},\n  union: true\n| fieldsAdd activated_total = arrayCumulativeSum(activated),\n            handled_total = arrayCumulativeSum(handled)\n| fieldsAdd buffered = activated_total[] - handled_total[]\n| fieldsRemove activated, handled, activated_total, handled_total",
       "visualization": "lineChart",
       "visualizationSettings": {
         "autoSelectVisualization": false,
@@ -981,7 +981,7 @@
         "defaultSamplingRatio": 10,
         "enableSampling": false
       },
-      "description": "The difference between jobs created and jobs handled.\n\nCounters arrive from Camunda as OTLP **delta** values (Dynatrace does not ingest cumulative counters), so each column is cumulated over the selected timeframe to reproduce Grafana's monotonic counter view."
+      "description": "The difference between jobs created and jobs handled.\n\nPorted from Grafana: Both counters arrive as OTLP delta values, so each is cumulated over the timeframe before subtracting -- subtracting the raw deltas would show backlog *growth*, not backlog size. Requires the job worker application to export OTLP as well; the brokers do not emit `zeebe.client.*`."
     },
     "36": {
       "type": "markdown",

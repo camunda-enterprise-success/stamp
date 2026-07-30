@@ -164,7 +164,7 @@
         "defaultSamplingRatio": 10,
         "enableSampling": false
       },
-      "description": "Shows when and how often a pod was restarted.  The graph is zero when the pod is ready. With this it is also possible to determine how long it take for the pod to come ready again.\n\nPorted from Grafana: Grafana derived restarts from `1 - kube_pod_container_status_ready`; this uses the Dynatrace built-in container restart counter instead (requires Dynatrace Kubernetes monitoring)."
+      "description": "Shows when and how often a pod was restarted.  The graph is zero when the pod is ready. With this it is also possible to determine how long it take for the pod to come ready again.\n\nPorted from Grafana: Grafana derived restarts from `1 - kube_pod_container_status_ready`; this uses the Dynatrace built-in container restart counter instead, so the tile shows restart events per interval rather than a readiness flag (requires Dynatrace Kubernetes monitoring)."
     },
     "6": {
       "type": "data",

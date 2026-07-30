@@ -1111,7 +1111,7 @@
     "39": {
       "type": "data",
       "title": "Record Processing Duration",
-      "query": "timeseries {\n    p50 = percentile(zeebe.stream.processor.processing.duration, 50),\n    p90 = percentile(zeebe.stream.processor.processing.duration, 90),\n    p99 = percentile(zeebe.stream.processor.processing.duration, 99)\n  },\n  by: {valueType, intent},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "query": "timeseries {\n    p50 = percentile(zeebe.stream.processor.processing.duration, 50),\n    p90 = percentile(zeebe.stream.processor.processing.duration, 90),\n    p99 = percentile(zeebe.stream.processor.processing.duration, 99)\n  },\n  by: {valueType, intent},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition))},\n  union: true",
       "visualization": "lineChart",
       "visualizationSettings": {
         "autoSelectVisualization": false,
@@ -1145,7 +1145,7 @@
     "40": {
       "type": "data",
       "title": "Record Processing Duration",
-      "query": "timeseries {\n    p50 = percentile(zeebe.stream.processor.processing.duration, 50),\n    p90 = percentile(zeebe.stream.processor.processing.duration, 90),\n    p99 = percentile(zeebe.stream.processor.processing.duration, 99)\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "query": "timeseries {\n    p50 = percentile(zeebe.stream.processor.processing.duration, 50),\n    p90 = percentile(zeebe.stream.processor.processing.duration, 90),\n    p99 = percentile(zeebe.stream.processor.processing.duration, 99)\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition))},\n  union: true",
       "visualization": "lineChart",
       "visualizationSettings": {
         "autoSelectVisualization": false,
