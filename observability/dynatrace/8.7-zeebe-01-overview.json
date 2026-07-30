@@ -1,0 +1,1028 @@
+{
+  "version": 21,
+  "variables": [
+    {
+      "version": 2,
+      "key": "Namespace",
+      "type": "query",
+      "visible": true,
+      "editable": true,
+      "input": "timeseries n = count(zeebe.health), by: {k8s.namespace.name}\n| fields k8s.namespace.name\n| sort k8s.namespace.name asc",
+      "multiple": true,
+      "defaultValue": [
+        "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+      ]
+    },
+    {
+      "version": 2,
+      "key": "Pod",
+      "type": "query",
+      "visible": true,
+      "editable": true,
+      "input": "timeseries n = count(zeebe.health),\n  by: {k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace))}\n| fields k8s.pod.name\n| sort k8s.pod.name asc",
+      "multiple": true,
+      "defaultValue": [
+        "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+      ]
+    },
+    {
+      "version": 2,
+      "key": "Partition",
+      "type": "query",
+      "visible": true,
+      "editable": true,
+      "input": "timeseries n = count(atomix.role),\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace))}\n| fields partition\n| sort partition asc",
+      "multiple": true,
+      "defaultValue": [
+        "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+      ]
+    }
+  ],
+  "tiles": {
+    "1": {
+      "type": "markdown",
+      "content": "# Camunda 8.7 — Zeebe Overview\n\nPorted from the Camunda Grafana dashboard `8.7.35-zeebe.json`. Metrics are expected in Grail as **Micrometer meter names** (`zeebe.stream.processor.records.total`), pushed straight from Camunda over OTLP with `delta` temporality — see `runbook-dynatrace.md`.\n\n**Companion dashboards:** `8.7-zeebe-02-processing.json` · `8.7-zeebe-03-storage.json` · `8.7-zeebe-04-cluster.json` · `8.7-zeebe-05-resources.json`"
+    },
+    "2": {
+      "type": "markdown",
+      "content": "## General Overview\nCluster-wide health, throughput and resource headline signals."
+    },
+    "3": {
+      "type": "data",
+      "title": "Topology",
+      "query": "timeseries role = max(atomix.role),\n  by: {k8s.pod.name, partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))}",
+      "visualization": "table",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "table": {
+          "rowDensity": "condensed",
+          "enableSparklines": true,
+          "hiddenColumns": [],
+          "linewrapEnabled": false,
+          "monospacedFontEnabled": false
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Displays the roles of each node per partition."
+    },
+    "4": {
+      "type": "data",
+      "title": "Health",
+      "query": "timeseries health = min(zeebe.health),\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))}\n| fieldsAdd value = arrayLast(health)\n| fields partition, value",
+      "visualization": "honeycomb",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "honeycomb": {
+          "shape": "hexagon",
+          "dataMappings": {},
+          "displayedFields": [],
+          "truncationMode": "middle",
+          "colorMode": "color-palette",
+          "colorPalette": "categorical",
+          "legend": {
+            "hidden": false,
+            "position": "auto",
+            "ratio": "auto"
+          }
+        },
+        "thresholds": [
+          {
+            "id": "0",
+            "title": "Health",
+            "field": "value",
+            "isEnabled": true,
+            "rules": [
+              {
+                "id": "0",
+                "label": "",
+                "comparator": "≥",
+                "value": 0,
+                "color": "#7dc540"
+              },
+              {
+                "id": "1",
+                "label": "",
+                "comparator": "≥",
+                "value": 0,
+                "color": "#dc172a"
+              },
+              {
+                "id": "2",
+                "label": "",
+                "comparator": "≥",
+                "value": 1,
+                "color": "#7dc540"
+              }
+            ]
+          }
+        ]
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows accumulated health per partition"
+    },
+    "5": {
+      "type": "data",
+      "title": "Pod Restarts",
+      "query": "timeseries restarts = sum(dt.kubernetes.container.restarts),\n  by: {k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows when and how often a pod was restarted.  The graph is zero when the pod is ready. With this it is also possible to determine how long it take for the pod to come ready again.\n\nPorted from Grafana: Grafana derived restarts from `1 - kube_pod_container_status_ready`; this uses the Dynatrace built-in container restart counter instead (requires Dynatrace Kubernetes monitoring)."
+    },
+    "6": {
+      "type": "data",
+      "title": "Banned instances",
+      "query": "timeseries banned_instances = max(zeebe.banned.instances.total),\n  by: {k8s.namespace.name, partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))}\n| fieldsAdd value = arrayLast(banned_instances)\n| fields k8s.namespace.name, partition, value",
+      "visualization": "honeycomb",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "honeycomb": {
+          "shape": "hexagon",
+          "dataMappings": {},
+          "displayedFields": [],
+          "truncationMode": "middle",
+          "colorMode": "color-palette",
+          "colorPalette": "categorical",
+          "legend": {
+            "hidden": false,
+            "position": "auto",
+            "ratio": "auto"
+          }
+        },
+        "thresholds": [
+          {
+            "id": "0",
+            "title": "Banned instances",
+            "field": "value",
+            "isEnabled": true,
+            "rules": [
+              {
+                "id": "0",
+                "label": "",
+                "comparator": "≥",
+                "value": 0,
+                "color": "#7dc540"
+              },
+              {
+                "id": "1",
+                "label": "",
+                "comparator": "≥",
+                "value": 1,
+                "color": "#dc172a"
+              }
+            ]
+          }
+        ]
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the count of banned process instances of the namespace."
+    },
+    "7": {
+      "type": "data",
+      "title": "Processing per Partition",
+      "query": "timeseries {\n    processed = sum(zeebe.stream.processor.records.total, rate:1s, filter:{in(action, \"skipped\", \"processed\")}),\n    written = sum(zeebe.stream.processor.records.total, rate:1s, filter:{in(action, \"written\")})\n  },\n  by: {k8s.pod.name, partition, processor},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      }
+    },
+    "8": {
+      "type": "data",
+      "title": "Exporting per Partition",
+      "query": "timeseries exporter_events_per_sec = sum(zeebe.exporter.events.total, rate:1s),\n  by: {k8s.pod.name, partition, exporter},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      }
+    },
+    "9": {
+      "type": "data",
+      "title": "Requests handled by Gateway per sec",
+      "query": "timeseries requests_per_sec = sum(zeebe.gateway.total.requests, rate:1s),\n  by: {requestType},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Requests which hit the gateway and a response have been sent to the client per second.\n\nPorted from Grafana: Grafana joined the dead `grpc_server_handled_total` with the gRPC histogram's `_count` via `label_replace`. Dynatrace cannot read a histogram's observation count, so this uses the `zeebe.gateway.total.requests` counter split by requestType."
+    },
+    "10": {
+      "type": "data",
+      "title": "Overall FNI  per s",
+      "query": "timeseries instance_events_per_sec = sum(zeebe.element.instance.events.total, rate:1s, filter:{type != \"PROCESS\" and action != \"activated\"}),\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}\n| fieldsAdd value = arrayAvg(instance_events_per_sec)\n| summarize value = avg(value)",
+      "visualization": "singleValue",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "singleValue": {
+          "showLabel": false,
+          "label": "",
+          "prefixIcon": "",
+          "autoscale": true,
+          "alignment": "center",
+          "colorThresholdTarget": "value"
+        },
+        "thresholds": [
+          {
+            "id": "0",
+            "title": "Overall FNI  per s",
+            "field": "value",
+            "isEnabled": true,
+            "rules": [
+              {
+                "id": "0",
+                "label": "",
+                "comparator": "≥",
+                "value": 0,
+                "color": "#7dc540"
+              },
+              {
+                "id": "1",
+                "label": "",
+                "comparator": "≥",
+                "value": 5,
+                "color": "#f5d30f"
+              },
+              {
+                "id": "2",
+                "label": "",
+                "comparator": "≥",
+                "value": 10,
+                "color": "#7dc540"
+              }
+            ]
+          }
+        ]
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Flow node instances completed or terminated per second over all partitions."
+    },
+    "11": {
+      "type": "data",
+      "title": "Current Events",
+      "query": "timeseries instance_events_per_sec = sum(zeebe.element.instance.events.total, rate:1s),\n  by: {type, action, eventType},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the current processed records"
+    },
+    "12": {
+      "type": "data",
+      "title": "Completed Tasks in avg overtime per sec",
+      "query": "timeseries instance_events_per_sec = sum(zeebe.element.instance.events.total, rate:1s, filter:{action == \"completed\" and type == \"SERVICE_TASK\"}),\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))}\n| fieldsAdd value = arrayAvg(instance_events_per_sec)\n| summarize value = avg(value)",
+      "visualization": "singleValue",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "singleValue": {
+          "showLabel": false,
+          "label": "",
+          "prefixIcon": "",
+          "autoscale": true,
+          "alignment": "center",
+          "colorThresholdTarget": "value"
+        },
+        "thresholds": [
+          {
+            "id": "0",
+            "title": "Completed Tasks in avg overtime per sec",
+            "field": "value",
+            "isEnabled": true,
+            "rules": [
+              {
+                "id": "0",
+                "label": "",
+                "comparator": "≥",
+                "value": 0,
+                "color": "#7dc540"
+              },
+              {
+                "id": "1",
+                "label": "",
+                "comparator": "≥",
+                "value": 80,
+                "color": "#dc172a"
+              }
+            ]
+          }
+        ]
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Takes the avg of all completed tasks per second over the given time range."
+    },
+    "13": {
+      "type": "data",
+      "title": "Completed Processes in avg overtime per sec",
+      "query": "timeseries instance_events_per_sec = sum(zeebe.element.instance.events.total, rate:1s, filter:{action == \"completed\" and type == \"PROCESS\"}),\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))}\n| fieldsAdd value = arrayAvg(instance_events_per_sec)\n| summarize value = avg(value)",
+      "visualization": "singleValue",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "singleValue": {
+          "showLabel": false,
+          "label": "",
+          "prefixIcon": "",
+          "autoscale": true,
+          "alignment": "center",
+          "colorThresholdTarget": "value"
+        },
+        "thresholds": [
+          {
+            "id": "0",
+            "title": "Completed Processes in avg overtime per sec",
+            "field": "value",
+            "isEnabled": true,
+            "rules": [
+              {
+                "id": "0",
+                "label": "",
+                "comparator": "≥",
+                "value": 0,
+                "color": "#7dc540"
+              },
+              {
+                "id": "1",
+                "label": "",
+                "comparator": "≥",
+                "value": 80,
+                "color": "#dc172a"
+              }
+            ]
+          }
+        ]
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Takes the avg of all completed processes per second over the given time range."
+    },
+    "14": {
+      "type": "data",
+      "title": "PVC Disk Usage",
+      "query": "timeseries {\n    persistentvolumeclaim_used_a = avg(dt.kubernetes.persistentvolumeclaim.used, default:0, filter:{matchesValue(k8s.persistentvolumeclaim.name, \"*zeebe*\")}),\n    persistentvolumeclaim_capacity_b = avg(dt.kubernetes.persistentvolumeclaim.capacity, filter:{matchesValue(k8s.persistentvolumeclaim.name, \"*zeebe*\")})\n  },\n  filter: {in(k8s.namespace.name, array($Namespace))},\n  union: true,\n  nonempty: true\n| fieldsAdd ratio = persistentvolumeclaim_used_a[] / persistentvolumeclaim_capacity_b[]\n| fieldsRemove persistentvolumeclaim_used_a, persistentvolumeclaim_capacity_b",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      }
+    },
+    "15": {
+      "type": "data",
+      "title": "Backpressure Dropping Requests",
+      "query": "timeseries {\n    request_count_a = sum(zeebe.dropped.request.count.total, rate:1s, default:0),\n    request_count_b = sum(zeebe.received.request.count.total, rate:1s)\n  },\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition))},\n  union: true,\n  nonempty: true\n| fieldsAdd ratio = 100 * request_count_a[] / request_count_b[]\n| fieldsRemove request_count_a, request_count_b",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      }
+    },
+    "16": {
+      "type": "data",
+      "title": "Cluster Load",
+      "query": "timeseries load = avg(zeebe.flow.control.partition.load),\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))}\n| filter arrayMax(load) > 0\n| fieldsAdd partition_load = arrayAvg(load)\n| summarize cluster_load = avg(partition_load)",
+      "visualization": "gauge",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "thresholds": [
+          {
+            "id": "0",
+            "title": "Cluster Load",
+            "field": "",
+            "isEnabled": true,
+            "rules": [
+              {
+                "id": "0",
+                "label": "",
+                "comparator": "≥",
+                "value": 0,
+                "color": "#7dc540"
+              },
+              {
+                "id": "1",
+                "label": "",
+                "comparator": "≥",
+                "value": 70,
+                "color": "#f5d30f"
+              },
+              {
+                "id": "2",
+                "label": "",
+                "comparator": "≥",
+                "value": 90,
+                "color": "#dc172a"
+              }
+            ]
+          }
+        ]
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The current cluster load is defined by the current write rate divided by the write rate limit. The cluster load will display no data unless the flow control rate write limits are enabled.\n\nPorted from Grafana: `avg(load > 0)`: the `> 0` filter excludes partitions with no measured load, so partitions are filtered before averaging. Shows no data when flow-control write rate limits are disabled, exactly like the original."
+    },
+    "17": {
+      "type": "data",
+      "title": "Process memory usage",
+      "query": "timeseries {\n    rss = avg(dt.kubernetes.container.memory_working_set, filter:{matchesValue(k8s.container.name, \"zeebe*\")}),\n    limit_v = max(dt.kubernetes.container.limits_memory, filter:{matchesValue(k8s.container.name, \"zeebe*\")}),\n    request = min(dt.kubernetes.container.requests_memory, filter:{matchesValue(k8s.container.name, \"zeebe*\")})\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Memory limits and requests are taken from the k8 pod metrics."
+    },
+    "18": {
+      "type": "markdown",
+      "content": "## Start up\nBroker and partition start-up / recovery timings."
+    },
+    "19": {
+      "type": "data",
+      "title": "Atomix Partition Server Startup time",
+      "query": "timeseries bootstrap_time = max(atomix.partition.server.bootstrap.time),\n  by: {k8s.pod.name, partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))}",
+      "visualization": "table",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "table": {
+          "rowDensity": "condensed",
+          "enableSparklines": true,
+          "hiddenColumns": [],
+          "linewrapEnabled": false,
+          "monospacedFontEnabled": false
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Time taken to start and bootstrap partition servers.\n\nDropped query: atomix_partition_server_startup_time: only atomix.partition.server.bootstrap.time / .join.time exist in 8.7"
+    },
+    "20": {
+      "type": "data",
+      "title": "Streamprocessor Recovery Time",
+      "query": "timeseries recovery_time = max(zeebe.stream.processor.startup.recovery.time),\n  by: {k8s.pod.name, partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))}",
+      "visualization": "table",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "table": {
+          "rowDensity": "condensed",
+          "enableSparklines": true,
+          "hiddenColumns": [],
+          "linewrapEnabled": false,
+          "monospacedFontEnabled": false
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Time taken to recover and reprocess events"
+    },
+    "21": {
+      "type": "data",
+      "title": "Leader transition duration",
+      "query": "timeseries transition_latency = max(zeebe.leader.transition.latency),\n  by: {k8s.pod.name, partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "table",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "table": {
+          "rowDensity": "condensed",
+          "enableSparklines": true,
+          "hiddenColumns": [],
+          "linewrapEnabled": false,
+          "monospacedFontEnabled": false
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The time needed to install all leader services on a newly elected leader until it is ready to process new requests."
+    },
+    "22": {
+      "type": "markdown",
+      "content": "## Cluster\nDynamic scaling and topology change operations."
+    },
+    "23": {
+      "type": "data",
+      "title": "Topology Change Operations",
+      "query": "timeseries {\n    pending = max(zeebe.cluster.changes.operations.pending),\n    completed = max(zeebe.cluster.changes.operations.completed)\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Number of completed and pending operations"
+    },
+    "24": {
+      "type": "data",
+      "title": "Number of Failed Operations",
+      "query": "timeseries operation_attempts = sum(zeebe.cluster.changes.operation.attempts, filter:{outcome == \"failed\"}),\n  by: {k8s.pod.name, operation},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}\n| fieldsAdd operation_attempts = arrayCumulativeSum(operation_attempts)",
+      "visualization": "table",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "table": {
+          "rowDensity": "condensed",
+          "enableSparklines": true,
+          "hiddenColumns": [],
+          "linewrapEnabled": false,
+          "monospacedFontEnabled": false
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Counters arrive from Camunda as OTLP **delta** values (Dynatrace does not ingest cumulative counters), so each column is cumulated over the selected timeframe to reproduce Grafana's monotonic counter view."
+    },
+    "25": {
+      "type": "data",
+      "title": "Operation Duration",
+      "query": "timeseries {\n    p50 = percentile(zeebe.cluster.changes.operation.duration, 50),\n    p90 = percentile(zeebe.cluster.changes.operation.duration, 90),\n    p99 = percentile(zeebe.cluster.changes.operation.duration, 99)\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The time it takes to apply each operation\n\nGrafana rendered this as a histogram heatmap; Dynatrace charts the p50/p90/p99 percentiles of the same histogram instead."
+    },
+    "26": {
+      "type": "data",
+      "title": "Number of Applied Operations",
+      "query": "timeseries operation_attempts = sum(zeebe.cluster.changes.operation.attempts, filter:{outcome == \"applied\"}),\n  by: {k8s.pod.name, operation},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}\n| fieldsAdd operation_attempts = arrayCumulativeSum(operation_attempts)",
+      "visualization": "table",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "table": {
+          "rowDensity": "condensed",
+          "enableSparklines": true,
+          "hiddenColumns": [],
+          "linewrapEnabled": false,
+          "monospacedFontEnabled": false
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Counters arrive from Camunda as OTLP **delta** values (Dynatrace does not ingest cumulative counters), so each column is cumulated over the selected timeframe to reproduce Grafana's monotonic counter view."
+    }
+  },
+  "layouts": {
+    "1": {
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 4
+    },
+    "2": {
+      "x": 0,
+      "y": 4,
+      "w": 24,
+      "h": 2
+    },
+    "3": {
+      "x": 0,
+      "y": 6,
+      "w": 8,
+      "h": 6
+    },
+    "4": {
+      "x": 8,
+      "y": 6,
+      "w": 9,
+      "h": 4
+    },
+    "5": {
+      "x": 17,
+      "y": 6,
+      "w": 7,
+      "h": 6
+    },
+    "6": {
+      "x": 0,
+      "y": 12,
+      "w": 9,
+      "h": 4
+    },
+    "7": {
+      "x": 9,
+      "y": 12,
+      "w": 12,
+      "h": 5
+    },
+    "8": {
+      "x": 0,
+      "y": 17,
+      "w": 12,
+      "h": 5
+    },
+    "9": {
+      "x": 12,
+      "y": 17,
+      "w": 8,
+      "h": 6
+    },
+    "10": {
+      "x": 0,
+      "y": 23,
+      "w": 9,
+      "h": 4
+    },
+    "11": {
+      "x": 9,
+      "y": 23,
+      "w": 7,
+      "h": 6
+    },
+    "12": {
+      "x": 0,
+      "y": 29,
+      "w": 9,
+      "h": 4
+    },
+    "13": {
+      "x": 9,
+      "y": 29,
+      "w": 9,
+      "h": 4
+    },
+    "14": {
+      "x": 0,
+      "y": 33,
+      "w": 8,
+      "h": 6
+    },
+    "15": {
+      "x": 8,
+      "y": 33,
+      "w": 5,
+      "h": 6
+    },
+    "16": {
+      "x": 13,
+      "y": 33,
+      "w": 4,
+      "h": 6
+    },
+    "17": {
+      "x": 17,
+      "y": 33,
+      "w": 7,
+      "h": 6
+    },
+    "18": {
+      "x": 0,
+      "y": 39,
+      "w": 24,
+      "h": 2
+    },
+    "19": {
+      "x": 0,
+      "y": 41,
+      "w": 5,
+      "h": 6
+    },
+    "20": {
+      "x": 5,
+      "y": 41,
+      "w": 12,
+      "h": 6
+    },
+    "21": {
+      "x": 0,
+      "y": 47,
+      "w": 12,
+      "h": 6
+    },
+    "22": {
+      "x": 0,
+      "y": 53,
+      "w": 24,
+      "h": 2
+    },
+    "23": {
+      "x": 0,
+      "y": 55,
+      "w": 12,
+      "h": 8
+    },
+    "24": {
+      "x": 12,
+      "y": 55,
+      "w": 12,
+      "h": 8
+    },
+    "25": {
+      "x": 0,
+      "y": 63,
+      "w": 12,
+      "h": 8
+    },
+    "26": {
+      "x": 12,
+      "y": 63,
+      "w": 12,
+      "h": 8
+    }
+  },
+  "settings": {
+    "defaultTimeframe": {
+      "value": {
+        "from": "now()-15m",
+        "to": "now()"
+      },
+      "enabled": true
+    },
+    "defaultSegments": {
+      "value": [],
+      "enabled": false
+    }
+  },
+  "annotations": []
+}

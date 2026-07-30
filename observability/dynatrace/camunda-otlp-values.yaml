@@ -1,0 +1,102 @@
+# Camunda 8.7 Self-Managed — export metrics to Dynatrace via OTLP
+#
+# Related config: dynatrace/runbook-dynatrace.md
+# Dashboards:     dynatrace/8.7-zeebe-0*.json
+#
+# Camunda 8.7 uses Micrometer, so Spring Boot's OTLP metrics registry can push straight to
+# Dynatrace — no Prometheus scrape and no collector required. Merge this into your Camunda
+# Helm values (camunda-platform chart, 8.7.x).
+#
+# The four settings that silently break this path if omitted are called out below. Get any of
+# them wrong and the dashboards render empty tiles rather than an error.
+
+global:
+  # k8s.* resource attributes are NOT added automatically. Without them the dashboards'
+  # $Namespace / $Pod variables have no dimensions to list, and every broker reports as
+  # service.name=Camunda.
+  extraEnv: &otlpEnv
+    - name: K8S_POD_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
+    - name: K8S_NAMESPACE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace
+    - name: K8S_NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+
+    # --- OTLP metric export -------------------------------------------------------------
+    - name: MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED
+      value: "true"
+    - name: MANAGEMENT_OTLP_METRICS_EXPORT_URL
+      # Direct to the tenant. Use http://<collector>:4318/v1/metrics to go through the
+      # collector in otel-collector-dynatrace.yaml instead.
+      value: "https://<environment-id>.live.dynatrace.com/api/v2/otlp/v1/metrics"
+
+    # (1) REQUIRED. Dynatrace does not ingest cumulative counters or cumulative histograms —
+    #     they are dropped at ingest, silently. Micrometer defaults to CUMULATIVE.
+    - name: MANAGEMENT_OTLP_METRICS_EXPORT_AGGREGATIONTEMPORALITY
+      value: "DELTA"
+
+    # (2) REQUIRED for the latency dashboards to read in seconds. Spring Boot's OTLP registry
+    #     defaults to MILLISECONDS, while the Prometheus registry uses SECONDS — leaving the
+    #     default makes every histogram bucket boundary 1000x off versus the Grafana baseline.
+    - name: MANAGEMENT_OTLP_METRICS_EXPORT_BASETIMEUNIT
+      value: "SECONDS"
+
+    # (3) Export interval. Keep it at or below the smallest dashboard interval you want to
+    #     read; 30s matches the kube-prometheus-stack scrape interval used elsewhere in STAMP.
+    - name: MANAGEMENT_OTLP_METRICS_EXPORT_STEP
+      value: "30s"
+
+    # Explicit-bucket histograms are what percentile() needs. Exponential histograms are
+    # ingested as gauges without buckets, which makes percentiles unavailable.
+    - name: MANAGEMENT_OTLP_METRICS_EXPORT_HISTOGRAMFLAVOR
+      value: "explicit_bucket_histogram"
+
+    # (4) REQUIRED. Resource attributes the dashboard variables and filters depend on.
+    - name: MANAGEMENT_OPENTELEMETRY_RESOURCE_ATTRIBUTES_K8S_POD_NAME
+      value: "$(K8S_POD_NAME)"
+    - name: MANAGEMENT_OPENTELEMETRY_RESOURCE_ATTRIBUTES_K8S_NAMESPACE_NAME
+      value: "$(K8S_NAMESPACE_NAME)"
+    - name: MANAGEMENT_OPENTELEMETRY_RESOURCE_ATTRIBUTES_K8S_NODE_NAME
+      value: "$(K8S_NODE_NAME)"
+    # Set this if you monitor more than one cluster in the same tenant, then add
+    # `in(k8s.cluster.name, array($Cluster))` to the dashboard filters (see the runbook).
+    - name: MANAGEMENT_OPENTELEMETRY_RESOURCE_ATTRIBUTES_K8S_CLUSTER_NAME
+      value: "camunda-prod"
+
+    # API token with the `metrics.ingest` scope. Reference a Secret instead of inlining it:
+    #   valueFrom: { secretKeyRef: { name: dynatrace-otlp, key: api-token } }
+    - name: MANAGEMENT_OTLP_METRICS_EXPORT_HEADERS_AUTHORIZATION
+      valueFrom:
+        secretKeyRef:
+          name: dynatrace-otlp
+          key: authorization      # value must be: Api-Token dt0c01.XXXX
+
+# Zeebe brokers: the source of every zeebe.* / atomix.* metric on the dashboards.
+zeebe:
+  env: *otlpEnv
+  # Required for the Throughput dashboard's process-instance execution metrics.
+  extraEnvVars: []
+
+# Standalone gateway: source of zeebe.gateway.* and grpc.server.* metrics.
+zeebeGateway:
+  env: *otlpEnv
+
+# Optional. Enables zeebe.process.instance.execution.time and the job lifetime histograms
+# used by the Latency section.
+# zeebe:
+#   env:
+#     - name: ZEEBE_BROKER_EXECUTION_METRICS_EXPORTER_ENABLED
+#       value: "true"
+
+# Keep the Prometheus endpoint enabled while you validate the migration, so you can compare
+# Grafana and Dynatrace side by side. Disable it afterwards if you no longer scrape.
+# global:
+#   extraEnv:
+#     - name: MANAGEMENT_PROMETHEUS_METRICS_EXPORT_ENABLED
+#       value: "false"

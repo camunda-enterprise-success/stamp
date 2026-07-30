@@ -1,0 +1,122 @@
+# Optional OpenTelemetry Collector gateway: Camunda --OTLP--> collector --> Dynatrace
+#
+# Related config: dynatrace/runbook-dynatrace.md
+#
+# The dashboards do not need this file: Camunda can push straight to the tenant
+# (camunda-otlp-values.yaml). Add the gateway when you want any of:
+#   - one egress point and one API token instead of one per pod
+#   - k8sattributes enrichment (k8s.workload.name / .kind, k8s.node.name, k8s.cluster.uid)
+#     without setting resource attributes on every Camunda deployment
+#   - retry/queue buffering across tenant outages
+#
+# Metric names pass through untouched, so the dashboards work either way.
+#
+# Requires the OpenTelemetry Operator (or run the equivalent config in a plain Deployment).
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: dynatrace-gateway
+  namespace: otel-collector
+spec:
+  mode: deployment
+  # cumulativetodelta and the Dynatrace exporter keep per-series state, so do NOT scale this
+  # past a single replica unless you shard by resource — parallel replicas corrupt delta offsets.
+  replicas: 1
+  image: ghcr.io/dynatrace/dynatrace-otel-collector/dynatrace-otel-collector:latest
+  serviceAccount: otel-collector
+  env:
+    - name: DT_ENDPOINT
+      valueFrom:
+        secretKeyRef:
+          name: dynatrace-otlp
+          key: endpoint          # https://<environment-id>.live.dynatrace.com/api/v2/otlp
+    - name: DT_API_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: dynatrace-otlp
+          key: api-token         # token with the metrics.ingest scope
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      # Adds k8s.pod.name / k8s.namespace.name / k8s.workload.* from the sender's pod IP.
+      # Needs a ClusterRole with get/list/watch on pods, namespaces and replicasets.
+      k8sattributes:
+        auth_type: serviceAccount
+        passthrough: false
+        extract:
+          metadata:
+            - k8s.namespace.name
+            - k8s.pod.name
+            - k8s.pod.uid
+            - k8s.node.name
+            - k8s.deployment.name
+            - k8s.statefulset.name
+        pod_association:
+          - sources:
+              - from: resource_attribute
+                name: k8s.pod.ip
+          - sources:
+              - from: connection
+
+      # Collapse controller-specific names into k8s.workload.* the way Dynatrace's own
+      # reference pipeline does.
+      transform:
+        error_mode: ignore
+        metric_statements:
+          - context: resource
+            statements:
+              - set(attributes["k8s.workload.name"], attributes["k8s.statefulset.name"]) where IsString(attributes["k8s.statefulset.name"])
+              - set(attributes["k8s.workload.kind"], "statefulset") where IsString(attributes["k8s.statefulset.name"])
+              - set(attributes["k8s.workload.name"], attributes["k8s.deployment.name"]) where IsString(attributes["k8s.deployment.name"])
+              - set(attributes["k8s.workload.kind"], "deployment") where IsString(attributes["k8s.deployment.name"])
+
+      # Safety net only. Camunda should already send DELTA
+      # (MANAGEMENT_OTLP_METRICS_EXPORT_AGGREGATIONTEMPORALITY=DELTA); Dynatrace drops
+      # cumulative counters and cumulative histograms at ingest.
+      # max_staleness should be ~10x the export step (30s -> 5m).
+      cumulativetodelta:
+        max_staleness: 5m
+
+      batch:
+        send_batch_size: 1000
+        timeout: 10s
+
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+        spike_limit_percentage: 20
+
+    exporters:
+      otlphttp:
+        endpoint: ${env:DT_ENDPOINT}
+        headers:
+          Authorization: "Api-Token ${env:DT_API_TOKEN}"
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 300s
+        sending_queue:
+          enabled: true
+          queue_size: 5000
+
+    service:
+      telemetry:
+        metrics:
+          level: basic
+      pipelines:
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, k8sattributes, transform, cumulativetodelta, batch]
+          exporters: [otlphttp]
+---
+# Point Camunda at the gateway instead of the tenant:
+#   MANAGEMENT_OTLP_METRICS_EXPORT_URL=http://dynatrace-gateway-collector.otel-collector:4318/v1/metrics
+# and drop MANAGEMENT_OTLP_METRICS_EXPORT_HEADERS_AUTHORIZATION from the pods.

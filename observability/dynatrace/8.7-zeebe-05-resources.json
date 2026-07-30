@@ -1,0 +1,1593 @@
+{
+  "version": 21,
+  "variables": [
+    {
+      "version": 2,
+      "key": "Namespace",
+      "type": "query",
+      "visible": true,
+      "editable": true,
+      "input": "timeseries n = count(zeebe.health), by: {k8s.namespace.name}\n| fields k8s.namespace.name\n| sort k8s.namespace.name asc",
+      "multiple": true,
+      "defaultValue": [
+        "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+      ]
+    },
+    {
+      "version": 2,
+      "key": "Pod",
+      "type": "query",
+      "visible": true,
+      "editable": true,
+      "input": "timeseries n = count(zeebe.health),\n  by: {k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace))}\n| fields k8s.pod.name\n| sort k8s.pod.name asc",
+      "multiple": true,
+      "defaultValue": [
+        "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+      ]
+    },
+    {
+      "version": 2,
+      "key": "Partition",
+      "type": "query",
+      "visible": true,
+      "editable": true,
+      "input": "timeseries n = count(atomix.role),\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace))}\n| fields partition\n| sort partition asc",
+      "multiple": true,
+      "defaultValue": [
+        "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+      ]
+    }
+  ],
+  "tiles": {
+    "1": {
+      "type": "markdown",
+      "content": "# Camunda 8.7 — Zeebe Resources & Integrations\n\nPorted from the Camunda Grafana dashboard `8.7.35-zeebe.json`. Metrics are expected in Grail as **Micrometer meter names** (`zeebe.stream.processor.records.total`), pushed straight from Camunda over OTLP with `delta` temporality — see `runbook-dynatrace.md`.\n\n**Companion dashboards:** `8.7-zeebe-01-overview.json` · `8.7-zeebe-02-processing.json` · `8.7-zeebe-03-storage.json` · `8.7-zeebe-04-cluster.json`"
+    },
+    "2": {
+      "type": "markdown",
+      "content": "## Memory\nJVM heap/non-heap, buffer pools, Netty and GC."
+    },
+    "3": {
+      "type": "data",
+      "title": "Process memory usage",
+      "query": "timeseries {\n    rss = avg(dt.kubernetes.container.memory_working_set, filter:{matchesValue(k8s.pod.name, \"*zeebe*\") and matchesValue(k8s.container.name, \"zeebe*\")}),\n    limit_v = max(dt.kubernetes.container.limits_memory, filter:{matchesValue(k8s.pod.name, \"*zeebe*\") and matchesValue(k8s.container.name, \"zeebe*\")}),\n    request = min(dt.kubernetes.container.requests_memory, filter:{matchesValue(k8s.pod.name, \"*zeebe*\") and matchesValue(k8s.container.name, \"zeebe*\")})\n  },\n  filter: {in(k8s.namespace.name, array($Namespace))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Memory limits and requests are taken from the k8 pod metrics."
+    },
+    "4": {
+      "type": "data",
+      "title": "JVM Memory usage",
+      "query": "timeseries {\n    used = sum(jvm.memory.used, filter:{area == \"heap\"}),\n    committed = sum(jvm.memory.committed, filter:{area == \"heap\"}),\n    max_v = sum(jvm.memory.max, filter:{area == \"heap\"})\n  },\n  by: {k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Total amount of memory reserved for the JVM, where:\n\n- Used means currently in use by live objects\n- Committed means allocated to the JVM by the OS, and guaranteed to be available for usage\n- Max means maximum possible committed memory, but not guaranteed\n\nDropped query: pre-Micrometer name, dead in 8.7: jvm_memory_bytes_used"
+    },
+    "5": {
+      "type": "data",
+      "title": "Buffer Pool Memory Usage",
+      "query": "timeseries memory_used = sum(jvm.buffer.memory.used),\n  by: {k8s.namespace.name, k8s.pod.name, id},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Dropped query: pre-Micrometer name, dead in 8.7: jvm_buffer_pool_used_bytes"
+    },
+    "6": {
+      "type": "data",
+      "title": "Netty pooled allocated bytes",
+      "query": "timeseries memory_used = sum(netty.allocator.memory.used, filter:{allocator_type == \"PooledByteBufAllocator\"}),\n  by: {k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The amount of memory allocated by Netty's pooled allocator"
+    },
+    "7": {
+      "type": "data",
+      "title": "Netty unpooled allocated bytes",
+      "query": "timeseries memory_used = sum(netty.allocator.memory.used, filter:{allocator_type == \"UnpooledByteBufAllocator\"}),\n  by: {k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The amount of memory allocated by Netty's unpooled allocator"
+    },
+    "8": {
+      "type": "data",
+      "title": "GC Count per second",
+      "query": "timeseries {\n    p50 = percentile(jvm.gc.pause, 50),\n    p90 = percentile(jvm.gc.pause, 90),\n    p99 = percentile(jvm.gc.pause, 99)\n  },\n  by: {k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the number of garbage collections (GC) per second, aggregated per pod and GC type.\n\nPorted from Grafana: Grafana rated the GC histogram's observation count (`jvm_gc_pause_seconds_count`). Grail cannot query a histogram's observation count, so this charts GC pause duration percentiles instead."
+    },
+    "9": {
+      "type": "data",
+      "title": "GC proportion per second",
+      "query": "timeseries gc_seconds_per_sec = sum(jvm.gc.pause, rate:1s),\n  by: {k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the garbage collection (GC) time proportion per second. Means shows the rate which is spent in GC in a second.\n\nPorted from Grafana: Time spent in GC per second, from the sum of the GC pause histogram. Verify in your tenant that `sum()` over a histogram returns the sum of observations; if it does not, use `percentile(jvm.gc.pause, 99)` as a proxy."
+    },
+    "10": {
+      "type": "markdown",
+      "content": "## CPU\nContainer CPU usage, throttling and JVM threads."
+    },
+    "11": {
+      "type": "data",
+      "title": "CPU Throttling (AVG)",
+      "query": "timeseries cpu_throttled = avg(dt.kubernetes.container.cpu_throttled),\n  by: {k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The average percentage of CPU periods where the container ran but was throttled (stopped from running the whole CPU period).\n\n\ncontainer_cpu_cfs_periods_total -\nNumber of elapsed enforcement period intervals\ncontainer_cpu_cfs_throttled_periods_total -\nNumber of throttled period intervals\t\n\nhttps://github.com/google/cadvisor/blob/master/docs/storage/prometheus.md\nhttps://stackoverflow.com/a/67316429/2165134\nhttps://www.youtube.com/watch?v=UE7QX98-kO0\n\nPorted from Grafana: Grafana computed throttled_periods / periods from cAdvisor. `dt.kubernetes.container.cpu_throttled` is already the throttling ratio (requires Dynatrace Kubernetes monitoring)."
+    },
+    "12": {
+      "type": "data",
+      "title": "CPU usage",
+      "query": "timeseries cpu_usage = sum(dt.kubernetes.container.cpu_usage),\n  by: {k8s.pod.name, k8s.container.name, service},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      }
+    },
+    "13": {
+      "type": "data",
+      "title": "JVM Thread count",
+      "query": "timeseries daemon = sum(jvm.threads.daemon),\n  by: {k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Current thread count of a JVM, aggregated by namespace and pod\n\nDropped query: pre-Micrometer name, dead in 8.7: jvm_threads_current\n\nDropped query: pre-Micrometer name, dead in 8.7: jvm_threads_daemon\n\nDropped query: not merged into this tile (binary expression)"
+    },
+    "14": {
+      "type": "markdown",
+      "content": "## IO\nDisk and volume usage."
+    },
+    "15": {
+      "type": "data",
+      "title": "PVC Disk Usage",
+      "query": "timeseries {\n    persistentvolumeclaim_used_a = avg(dt.kubernetes.persistentvolumeclaim.used, default:0, filter:{matchesValue(k8s.persistentvolumeclaim.name, \"*zeebe*\")}),\n    persistentvolumeclaim_capacity_b = avg(dt.kubernetes.persistentvolumeclaim.capacity, filter:{matchesValue(k8s.persistentvolumeclaim.name, \"*zeebe*\")})\n  },\n  filter: {in(k8s.namespace.name, array($Namespace))},\n  union: true,\n  nonempty: true\n| fieldsAdd ratio = persistentvolumeclaim_used_a[] / persistentvolumeclaim_capacity_b[]\n| fieldsRemove persistentvolumeclaim_used_a, persistentvolumeclaim_capacity_b",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      }
+    },
+    "16": {
+      "type": "data",
+      "title": "File descriptors",
+      "query": "timeseries {\n    use_fds = avg(process.files.open),\n    limit_v = avg(process.files.max)\n  },\n  by: {k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      }
+    },
+    "17": {
+      "type": "data",
+      "title": "PVC Disk Available",
+      "query": "timeseries persistentvolumeclaim_available = avg(dt.kubernetes.persistentvolumeclaim.available),\n  by: {k8s.persistentvolumeclaim.name, k8s.namespace.name},\n  filter: {in(k8s.namespace.name, array($Namespace))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      }
+    },
+    "18": {
+      "type": "markdown",
+      "content": "### Container disk & network I/O — not available on this ingest path\nThe baseline's **Read IOPS**, **Write IOPS**, **Read bytes/s**, **Written bytes/s**, **Network bytes/s transmitted** and **Network bytes/s received** panels read cAdvisor `container_fs_*` / `container_network_*` counters. Camunda's OTLP export does not emit them and Dynatrace has no container-level equivalent.\n\nUse the **Kubernetes** app (workload → containers) for container I/O, or host-level `dt.host.disk.*` / `dt.host.net.*` metrics if OneAgent runs on the nodes."
+    },
+    "19": {
+      "type": "markdown",
+      "content": "## Elasticsearch Exporter\nElasticsearch exporter flushes and bulk sizes."
+    },
+    "20": {
+      "type": "data",
+      "title": "Elasticsearch Exporter (Flush Duration)",
+      "query": "timeseries {\n    p50 = percentile(zeebe.elasticsearch.exporter.flush.duration.seconds, 50),\n    p90 = percentile(zeebe.elasticsearch.exporter.flush.duration.seconds, 90),\n    p99 = percentile(zeebe.elasticsearch.exporter.flush.duration.seconds, 99)\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Grafana rendered this as a histogram heatmap; Dynatrace charts the p50/p90/p99 percentiles of the same histogram instead."
+    },
+    "21": {
+      "type": "data",
+      "title": "Elasticsearch Exporter (Flush Failure Rate)",
+      "query": "timeseries failed_flush_per_sec = sum(zeebe.elasticsearch.exporter.failed.flush,\n    rate:1s),\n  by: {k8s.pod.name, partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The rate of failure of flush operations, averaged over 15s intervals\n\nPorted from Grafana: Grafana divided failed flushes by the flush histogram's observation count. Grail cannot query a histogram's observation count, so this shows failed flushes per second rather than a failure ratio."
+    },
+    "22": {
+      "type": "data",
+      "title": "Elasticsearch Exporter (Bulk Size)",
+      "query": "timeseries {\n    p50 = percentile(zeebe.elasticsearch.exporter.bulk.size, 50),\n    p90 = percentile(zeebe.elasticsearch.exporter.bulk.size, 90),\n    p99 = percentile(zeebe.elasticsearch.exporter.bulk.size, 99)\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Grafana rendered this as a histogram heatmap; Dynatrace charts the p50/p90/p99 percentiles of the same histogram instead."
+    },
+    "23": {
+      "type": "data",
+      "title": "Elasticsearch Exporter (Bulk Memory Size)",
+      "query": "timeseries memory_size = avg(zeebe.elasticsearch.exporter.bulk.memory.size),\n  by: {k8s.pod.name, partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      }
+    },
+    "24": {
+      "type": "data",
+      "title": "Elasticsearch disk usage",
+      "query": "timeseries {\n    persistentvolumeclaim_used_a = avg(dt.kubernetes.persistentvolumeclaim.used, default:0, filter:{matchesValue(k8s.persistentvolumeclaim.name, \"*elastic*\")}),\n    persistentvolumeclaim_capacity_b = avg(dt.kubernetes.persistentvolumeclaim.capacity, filter:{matchesValue(k8s.persistentvolumeclaim.name, \"*elastic*\")})\n  },\n  filter: {in(k8s.namespace.name, array($Namespace))},\n  union: true,\n  nonempty: true\n| fieldsAdd ratio = persistentvolumeclaim_used_a[] / persistentvolumeclaim_capacity_b[]\n| fieldsRemove persistentvolumeclaim_used_a, persistentvolumeclaim_capacity_b",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      }
+    },
+    "25": {
+      "type": "markdown",
+      "content": "## Actor\nZeebe actor scheduler."
+    },
+    "26": {
+      "type": "data",
+      "title": "Actor Task Execution Latency",
+      "query": "timeseries {\n    p50 = percentile(zeebe.actor.task.execution.latency, 50),\n    p90 = percentile(zeebe.actor.task.execution.latency, 90),\n    p99 = percentile(zeebe.actor.task.execution.latency, 99)\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Execution time of a certain actor task.\n\nGrafana rendered this as a histogram heatmap; Dynatrace charts the p50/p90/p99 percentiles of the same histogram instead."
+    },
+    "27": {
+      "type": "data",
+      "title": "Actor Job Scheduling Latency",
+      "query": "timeseries {\n    p50 = percentile(zeebe.actor.job.scheduling.latency, 50),\n    p90 = percentile(zeebe.actor.job.scheduling.latency, 90),\n    p99 = percentile(zeebe.actor.job.scheduling.latency, 99)\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The time between scheduling and executing a job.\n\nGrafana rendered this as a histogram heatmap; Dynatrace charts the p50/p90/p99 percentiles of the same histogram instead."
+    },
+    "28": {
+      "type": "data",
+      "title": "Actor Task Execution Latency",
+      "query": "timeseries {\n    p50 = percentile(zeebe.actor.task.execution.latency, 50),\n    p99 = percentile(zeebe.actor.task.execution.latency, 99)\n  },\n  by: {actorName},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Execution time of a certain actor task instance and completing it."
+    },
+    "29": {
+      "type": "data",
+      "title": "Actor Job Scheduling Latency",
+      "query": "timeseries {\n    p50 = percentile(zeebe.actor.job.scheduling.latency, 50),\n    p99 = percentile(zeebe.actor.job.scheduling.latency, 99)\n  },\n  by: {subscriptionType},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The time between scheduling and executing a job."
+    },
+    "30": {
+      "type": "data",
+      "title": "Actor Task Execution Count",
+      "query": "timeseries actor_task_execution_count_per_sec = sum(zeebe.actor_task_execution_count, rate:1s),\n  by: {actorName},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Number of times a certain actor task was executed successfully."
+    },
+    "31": {
+      "type": "data",
+      "title": "Actor Task Queue Length",
+      "query": "timeseries queue_length = sum(zeebe.actor.task.queue.length),\n  by: {actorName},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The length of the job queue for an actor task."
+    },
+    "32": {
+      "type": "markdown",
+      "content": "## Worker Jobs\nJava-client job worker activity (requires the worker app to export OTLP)."
+    },
+    "33": {
+      "type": "data",
+      "title": "Rate of Jobs Activated",
+      "query": "timeseries activated_per_sec = sum(zeebe.client.worker.job.activated, rate:1s),\n  by: {k8s.namespace.name, workerName, jobType},\n  filter: {in(k8s.namespace.name, array($Namespace))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Rate of jobs of jobs activated by the client."
+    },
+    "34": {
+      "type": "data",
+      "title": "Rate of Jobs Handled",
+      "query": "timeseries handled_per_sec = sum(zeebe.client.worker.job.handled, rate:1s),\n  by: {k8s.namespace.name, workerName, jobType},\n  filter: {in(k8s.namespace.name, array($Namespace))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Rate of jobs of jobs handled by the worker."
+    },
+    "35": {
+      "type": "data",
+      "title": "Number Jobs in \"Buffer\"",
+      "query": "timeseries activated = sum(zeebe.client.worker.job.activated),\n  by: {k8s.namespace.name, workerName, jobType},\n  filter: {in(k8s.namespace.name, array($Namespace))}\n| fieldsAdd activated = arrayCumulativeSum(activated)",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The difference between jobs created and jobs handled.\n\nCounters arrive from Camunda as OTLP **delta** values (Dynatrace does not ingest cumulative counters), so each column is cumulated over the selected timeframe to reproduce Grafana's monotonic counter view."
+    },
+    "36": {
+      "type": "markdown",
+      "content": "## Job push\nJob push from brokers to gateways."
+    },
+    "37": {
+      "type": "data",
+      "title": "Broker jobs pushed",
+      "query": "timeseries {\n    pushed_count = sum(zeebe.broker.jobs.pushed.count, rate:1s),\n    fail_count = sum(zeebe.broker.jobs.push.fail.count, rate:1s)\n  },\n  by: {k8s.namespace.name, k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The rate of jobs pushed from a broker to a gateway per second, where ✅ are successful pushes, and ❌ are failures"
+    },
+    "38": {
+      "type": "data",
+      "title": "Gateway jobs pushed rate",
+      "query": "timeseries {\n    push = sum(zeebe.gateway.job.stream.push, rate:1s, filter:{status == \"success\"}),\n    push_2 = sum(zeebe.gateway.job.stream.push, rate:1s, filter:{status == \"failure\"})\n  },\n  by: {k8s.namespace.name, k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The amount of jobs pushed from the gateway to clients, per second, where ✅ are successful pushes, and ❌ are failures"
+    },
+    "39": {
+      "type": "data",
+      "title": "Broker job push failed attempt",
+      "query": "timeseries try_count_per_sec = sum(zeebe.broker.jobs.fail.try.count, rate:1s),\n  by: {k8s.pod.name, code},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The rate of failed job push attempts, grouped by code. Each attempt represents a direct attempt to push the job to a single client, and thus may be higher than the actual number of jobs pushed."
+    },
+    "40": {
+      "type": "data",
+      "title": "Gateway job push failed attempt",
+      "query": "timeseries try_per_sec = sum(zeebe.gateway.job.stream.push.fail.try, rate:1s),\n  by: {k8s.pod.name, code},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The rate of failed job push attempts, grouped by code. Each attempt represents a direct attempt to push the job to a single client, and thus may be higher than the actual number of jobs pushed."
+    },
+    "41": {
+      "type": "data",
+      "title": "Jobs pushed by engine",
+      "query": "timeseries job_events_per_sec = sum(zeebe.job.events.total, rate:1s, filter:{action == \"pushed\"}),\n  by: {k8s.namespace.name, partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The rate of jobs activated and pushed by the engine per second"
+    },
+    "42": {
+      "type": "markdown",
+      "content": "## Job stream\nJob stream registration between gateways and brokers."
+    },
+    "43": {
+      "type": "data",
+      "title": "Gateway client count",
+      "query": "timeseries clients = sum(zeebe.gateway.job.stream.clients),\n  by: {k8s.namespace.name, k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The number of open job stream client calls on the gateway. This should be one per open StreamActivatedJobRequest calls."
+    },
+    "44": {
+      "type": "data",
+      "title": "Gateway aggregated stream count",
+      "query": "timeseries streams = sum(zeebe.gateway.job.stream.streams),\n  by: {k8s.namespace.name, k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The number of aggregated streams per gateway. Client streams are logically aggregated as one in a gateway if they would activate the same job with the exact same parameters."
+    },
+    "45": {
+      "type": "data",
+      "title": "Broker job stream count",
+      "query": "timeseries stream_count = sum(zeebe.broker.open.job.stream.count),\n  by: {k8s.namespace.name, k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The count of job streams registered on the broker. This should be the sum of all gateway aggregated streams."
+    },
+    "46": {
+      "type": "data",
+      "title": "Gateway registered broker count",
+      "query": "timeseries servers = sum(zeebe.gateway.job.stream.servers),\n  by: {k8s.namespace.name, k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The amount of known brokers (or stream servers) per gateway."
+    }
+  },
+  "layouts": {
+    "1": {
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 4
+    },
+    "2": {
+      "x": 0,
+      "y": 4,
+      "w": 24,
+      "h": 2
+    },
+    "3": {
+      "x": 0,
+      "y": 6,
+      "w": 24,
+      "h": 7
+    },
+    "4": {
+      "x": 0,
+      "y": 13,
+      "w": 12,
+      "h": 8
+    },
+    "5": {
+      "x": 12,
+      "y": 13,
+      "w": 12,
+      "h": 8
+    },
+    "6": {
+      "x": 0,
+      "y": 21,
+      "w": 12,
+      "h": 8
+    },
+    "7": {
+      "x": 12,
+      "y": 21,
+      "w": 12,
+      "h": 8
+    },
+    "8": {
+      "x": 0,
+      "y": 29,
+      "w": 12,
+      "h": 8
+    },
+    "9": {
+      "x": 12,
+      "y": 29,
+      "w": 12,
+      "h": 8
+    },
+    "10": {
+      "x": 0,
+      "y": 37,
+      "w": 24,
+      "h": 2
+    },
+    "11": {
+      "x": 0,
+      "y": 39,
+      "w": 24,
+      "h": 9
+    },
+    "12": {
+      "x": 0,
+      "y": 48,
+      "w": 12,
+      "h": 8
+    },
+    "13": {
+      "x": 12,
+      "y": 48,
+      "w": 12,
+      "h": 8
+    },
+    "14": {
+      "x": 0,
+      "y": 56,
+      "w": 24,
+      "h": 2
+    },
+    "15": {
+      "x": 0,
+      "y": 58,
+      "w": 24,
+      "h": 5
+    },
+    "16": {
+      "x": 0,
+      "y": 63,
+      "w": 12,
+      "h": 8
+    },
+    "17": {
+      "x": 12,
+      "y": 63,
+      "w": 12,
+      "h": 8
+    },
+    "18": {
+      "x": 0,
+      "y": 71,
+      "w": 24,
+      "h": 5
+    },
+    "19": {
+      "x": 0,
+      "y": 76,
+      "w": 24,
+      "h": 2
+    },
+    "20": {
+      "x": 0,
+      "y": 78,
+      "w": 12,
+      "h": 10
+    },
+    "21": {
+      "x": 12,
+      "y": 78,
+      "w": 12,
+      "h": 10
+    },
+    "22": {
+      "x": 0,
+      "y": 88,
+      "w": 12,
+      "h": 10
+    },
+    "23": {
+      "x": 12,
+      "y": 88,
+      "w": 12,
+      "h": 10
+    },
+    "24": {
+      "x": 0,
+      "y": 98,
+      "w": 24,
+      "h": 10
+    },
+    "25": {
+      "x": 0,
+      "y": 108,
+      "w": 24,
+      "h": 2
+    },
+    "26": {
+      "x": 0,
+      "y": 110,
+      "w": 12,
+      "h": 8
+    },
+    "27": {
+      "x": 12,
+      "y": 110,
+      "w": 12,
+      "h": 8
+    },
+    "28": {
+      "x": 0,
+      "y": 118,
+      "w": 12,
+      "h": 8
+    },
+    "29": {
+      "x": 12,
+      "y": 118,
+      "w": 12,
+      "h": 8
+    },
+    "30": {
+      "x": 0,
+      "y": 126,
+      "w": 12,
+      "h": 8
+    },
+    "31": {
+      "x": 12,
+      "y": 126,
+      "w": 12,
+      "h": 8
+    },
+    "32": {
+      "x": 0,
+      "y": 134,
+      "w": 24,
+      "h": 2
+    },
+    "33": {
+      "x": 0,
+      "y": 136,
+      "w": 8,
+      "h": 6
+    },
+    "34": {
+      "x": 8,
+      "y": 136,
+      "w": 9,
+      "h": 6
+    },
+    "35": {
+      "x": 17,
+      "y": 136,
+      "w": 7,
+      "h": 6
+    },
+    "36": {
+      "x": 0,
+      "y": 142,
+      "w": 24,
+      "h": 2
+    },
+    "37": {
+      "x": 0,
+      "y": 144,
+      "w": 12,
+      "h": 8
+    },
+    "38": {
+      "x": 12,
+      "y": 144,
+      "w": 12,
+      "h": 8
+    },
+    "39": {
+      "x": 0,
+      "y": 152,
+      "w": 12,
+      "h": 8
+    },
+    "40": {
+      "x": 12,
+      "y": 152,
+      "w": 12,
+      "h": 8
+    },
+    "41": {
+      "x": 0,
+      "y": 160,
+      "w": 12,
+      "h": 8
+    },
+    "42": {
+      "x": 0,
+      "y": 168,
+      "w": 24,
+      "h": 2
+    },
+    "43": {
+      "x": 0,
+      "y": 170,
+      "w": 12,
+      "h": 8
+    },
+    "44": {
+      "x": 12,
+      "y": 170,
+      "w": 12,
+      "h": 8
+    },
+    "45": {
+      "x": 0,
+      "y": 178,
+      "w": 12,
+      "h": 8
+    },
+    "46": {
+      "x": 12,
+      "y": 178,
+      "w": 12,
+      "h": 8
+    }
+  },
+  "settings": {
+    "defaultTimeframe": {
+      "value": {
+        "from": "now()-15m",
+        "to": "now()"
+      },
+      "enabled": true
+    },
+    "defaultSegments": {
+      "value": [],
+      "enabled": false
+    }
+  },
+  "annotations": []
+}
