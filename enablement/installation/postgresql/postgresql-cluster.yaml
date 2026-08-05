@@ -10,6 +10,13 @@
 # Service via pg-camunda-rw.postgres.svc.cluster.local: the Camunda orchestration cluster
 # (camunda ns, ../minimal_setup.yaml) and Keycloak (keycloak ns, ../keycloak/keycloak-instance.yaml).
 #
+# Also hosts two more databases for the Elasticsearch + Optimize + Identity + Web Modeler variant
+# (see the README's "Variant" section) - Management Identity's and Web Modeler's own app data,
+# added via the "identity"/"webmodeler" roles below and the Database CRs in
+# ../postgresql-databases-identity-webmodeler.yaml. Same shared-instance rationale as Keycloak's
+# database: this is a fresh install with no pre-existing RDBMS, so one shared instance is leaner
+# than one CNPG Cluster per consumer.
+#
 # BACKUP: spec.backup.barmanObjectStore points at the local MinIO store (../backup/minio.yaml, minio ns)
 # so Postgres (the secondary storage) is backed up with Barman into the SAME bucket the Zeebe
 # primary-storage backup uses - under the "rdbms" prefix. CNPG turns on continuous WAL
@@ -18,11 +25,14 @@
 #   https://docs.camunda.io/docs/self-managed/operational-guides/backup-restore/rdbms/rdbms-backup/
 #
 # The credential Secrets below are inlined with simple username=password values
-# (camunda/camunda, keycloak/keycloak, minio) for easier initial understanding - swap them for
-# real generated passwords before this becomes anything but a local/dev cluster. Because
-# Secrets are namespace-scoped, camunda-rdbms-credentials is also declared in the camunda
-# namespace (../camunda-secrets.yaml), keycloak-rdbms-credentials in the keycloak namespace
-# (../keycloak/keycloak-instance.yaml), and minio-credentials in the minio namespace (../backup/minio.yaml):
+# (camunda/camunda, keycloak/keycloak, identity/identity, webmodeler/webmodeler, minio) for easier
+# initial understanding - swap them for real generated passwords before this becomes anything but
+# a local/dev cluster. Because Secrets are namespace-scoped, camunda-rdbms-credentials is also
+# declared in the camunda namespace (../camunda-secrets.yaml), keycloak-rdbms-credentials in the
+# keycloak namespace (../keycloak/keycloak-instance.yaml), identity-rdbms-credentials and
+# webmodeler-rdbms-credentials in the camunda namespace too
+# (../camunda-secrets-identity-webmodeler.yaml, Variant section only), and minio-credentials in the
+# minio namespace (../backup/minio.yaml):
 #
 #   kubectl create secret generic camunda-rdbms-credentials \
 #     --namespace postgres --type=kubernetes.io/basic-auth \
@@ -30,6 +40,12 @@
 #   kubectl create secret generic keycloak-rdbms-credentials \
 #     --namespace postgres --type=kubernetes.io/basic-auth \
 #     --from-literal=username='keycloak' --from-literal=password='<keycloak-db-password>'
+#   kubectl create secret generic identity-rdbms-credentials \
+#     --namespace postgres --type=kubernetes.io/basic-auth \
+#     --from-literal=username='identity' --from-literal=password='<identity-db-password>'
+#   kubectl create secret generic webmodeler-rdbms-credentials \
+#     --namespace postgres --type=kubernetes.io/basic-auth \
+#     --from-literal=username='webmodeler' --from-literal=password='<webmodeler-db-password>'
 
 apiVersion: v1
 kind: Namespace
@@ -68,6 +84,28 @@ stringData:
   username: keycloak
   password: keycloak
 ---
+# Variant only (see the README's "Variant" section) - Management Identity's and Web Modeler's own
+# login roles, added to this same instance.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: identity-rdbms-credentials
+  namespace: postgres
+type: kubernetes.io/basic-auth
+stringData:
+  username: identity
+  password: identity
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: webmodeler-rdbms-credentials
+  namespace: postgres
+type: kubernetes.io/basic-auth
+stringData:
+  username: webmodeler
+  password: webmodeler
+---
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
@@ -97,6 +135,18 @@ spec:
         login: true
         passwordSecret:
           name: keycloak-rdbms-credentials
+      # Variant only (see the README's "Variant" section) - login roles for Management Identity's
+      # and Web Modeler's own databases (../postgresql-databases-identity-webmodeler.yaml).
+      - name: identity
+        ensure: present
+        login: true
+        passwordSecret:
+          name: identity-rdbms-credentials
+      - name: webmodeler
+        ensure: present
+        login: true
+        passwordSecret:
+          name: webmodeler-rdbms-credentials
   # Barman backup to the local MinIO object store. In-tree barmanObjectStore is deprecated as
   # of CNPG 1.26 (in favour of the Barman Cloud Plugin) but remains the default and works on
   # 1.30. If your CNPG operator image no longer bundles barman-cloud, install the Barman Cloud
@@ -125,7 +175,8 @@ spec:
       memory: 1Gi
 ---
 # Second database on the same instance/role set above - owned by the "keycloak" role,
-# referenced by ../keycloak/keycloak-instance.yaml.
+# referenced by ../keycloak/keycloak-instance.yaml. The "identity" and "webmodeler" databases
+# (Variant only) are Database CRs of their own, in ../postgresql-databases-identity-webmodeler.yaml.
 apiVersion: postgresql.cnpg.io/v1
 kind: Database
 metadata:

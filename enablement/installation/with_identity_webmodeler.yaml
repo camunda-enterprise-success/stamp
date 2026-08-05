@@ -1,0 +1,78 @@
+# Layer 3b (+identity+webmodeler) - additive on top of minimal_setup_elasticsearch.yaml (+
+# with_permissions.yaml + with_optimize.yaml). Depends on with_optimize.yaml specifically: it
+# reuses the global.identity.keycloak.* "External Keycloak" connection block established there
+# (this file only adds the Web Modeler sub-key under global.identity.auth, plus enables the two
+# component deployments).
+#
+# Management Identity and Web Modeler are one layer, not two, because the chart's own values.yaml
+# says so directly: "Management Identity is always required by WebModeler." Each gets its own
+# database on the shared CNPG instance (postgresql/postgresql-cluster.yaml's managed.roles +
+# postgresql/postgresql-databases-identity-webmodeler.yaml's Database CRs) rather than the
+# deprecated identityPostgresql/webModelerPostgresql Bitnami subcharts - same operator-based
+# replacement principle as Elasticsearch. Note this is NOT strictly required by the chart in
+# "External Keycloak" mode (Keycloak can store Identity's data itself unless multitenancy is on) -
+# it's configured explicitly here to demonstrate the CNPG pattern end-to-end for these two
+# components, per this guide's request.
+
+global:
+  identity:
+    auth:
+      webModeler:
+        # Works if a port-forward to Web Modeler is created to 8070 (see the README's "Accessing
+        # the UIs" step in the Variant section).
+        redirectUrl: "http://localhost:8070"
+
+identity:
+  enabled: true
+  contextPath: "/identity"
+  externalDatabase:
+    enabled: true
+    # pg-camunda-rw is the CloudNativePG-managed read-write Service from
+    # postgresql/postgresql-cluster.yaml (postgres namespace) - reached cross-namespace via its
+    # FQDN, same as the RDBMS track's minimal_setup.yaml.
+    host: pg-camunda-rw.postgres.svc.cluster.local
+    port: 5432
+    database: identity
+    username: identity
+    secret:
+      existingSecret: identity-rdbms-credentials
+      existingSecretKey: password
+  resources:
+    requests:
+      cpu: 600m
+      memory: 400Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+identityPostgresql:
+  enabled: false
+
+webModeler:
+  enabled: true
+  contextPath: "/modeler"
+  restapi:
+    externalDatabase:
+      enabled: true
+      host: pg-camunda-rw.postgres.svc.cluster.local
+      port: 5432
+      database: webmodeler
+      username: webmodeler
+      secret:
+        existingSecret: webmodeler-rdbms-credentials
+        existingSecretKey: password
+    mail:
+      # Mandatory - Web Modeler fails its readiness probe without a fromAddress, even though no
+      # real SMTP server is configured in this local/dev setup.
+      fromAddress: "noreply@camunda.local"
+      fromName: "Camunda Platform"
+    resources:
+      requests:
+        cpu: 900m
+        memory: 1280Mi
+      limits:
+        cpu: 1800m
+        memory: 2560Mi
+
+webModelerPostgresql:
+  enabled: false

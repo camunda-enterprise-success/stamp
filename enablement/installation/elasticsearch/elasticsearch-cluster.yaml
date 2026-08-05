@@ -1,0 +1,65 @@
+# Elasticsearch - deployed via the Elastic Cloud on Kubernetes (ECK) operator - used as secondary
+# storage for the ../minimal_setup_elasticsearch.yaml orchestration cluster and for Optimize
+# (../with_optimize.yaml). Per Camunda's migration-from-bitnami guidance
+# (https://docs.camunda.io/docs/self-managed/deployment/helm/operational-tasks/migration-from-bitnami/bitnami-to-operators/),
+# this replaces the deprecated bundled Bitnami Elasticsearch subchart (removed in Camunda 8.10).
+#
+# Lives in its own "elasticsearch" namespace - same layering principle as postgres/keycloak/minio.
+# Install the ECK operator CRDs + controller first (see the README's Prerequisites), then
+# `kubectl apply -f` this file.
+#
+# Single node, TLS disabled - matches this guide's "single instance, no HA" / "no Ingress, TLS"
+# posture everywhere else (see the README's Notes / caveats). Scale nodeSets[0].count and add TLS
+# for anything beyond local/enablement use.
+#
+# ECK owns and auto-generates the "elastic" superuser's credentials - unlike every other secret in
+# this repo, it can't be a static inlined dev value. It creates a Secret named
+# "elasticsearch-es-elastic-user" (key "elastic") IN THIS NAMESPACE. Since Secrets are
+# namespace-scoped, ../elasticsearch/copy-elastic-secret.sh copies it into "camunda" for the
+# orchestration cluster (../minimal_setup_elasticsearch.yaml) and Optimize (../with_optimize.yaml)
+# to consume via existingSecret.
+#
+# ECK also creates the read Service this points at: elasticsearch-es-http.elasticsearch.svc.cluster.local:9200
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: elasticsearch
+---
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: elasticsearch
+  namespace: elasticsearch
+spec:
+  # renovate: datasource=docker depName=docker.elastic.co/elasticsearch/elasticsearch versioning=semver
+  version: 8.19.19
+  http:
+    tls:
+      selfSignedCertificate:
+        disabled: true
+  nodeSets:
+    - name: default
+      count: 1
+      config:
+        node.store.allow_mmap: "false"
+      volumeClaimTemplates:
+        - metadata:
+            name: elasticsearch-data
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 20Gi
+      podTemplate:
+        spec:
+          containers:
+            - name: elasticsearch
+              resources:
+                requests:
+                  cpu: "1"
+                  memory: 2Gi
+                limits:
+                  cpu: "2"
+                  memory: 2Gi

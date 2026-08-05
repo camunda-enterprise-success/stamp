@@ -1,0 +1,74 @@
+# Layer 2b (+optimize) - additive on top of minimal_setup_elasticsearch.yaml (+
+# with_permissions.yaml). Only composes with the Elasticsearch base, never minimal_setup.yaml -
+# Optimize has no RDBMS mode, it only reads Elasticsearch/OpenSearch. It imports from the SAME
+# Elasticsearch index the orchestration cluster's "camunda" exporter already writes to
+# (minimal_setup_elasticsearch.yaml's orchestration.exporters.camunda.enabled: true) - nothing
+# about the exporter or the Elasticsearch cluster itself changes here, only Optimize's own
+# deployment and its OIDC wiring.
+#
+# global.identity.* below is the foundation with_identity_webmodeler.yaml builds on: unlike
+# orchestration's own OIDC client (with_permissions.yaml's orchestration.security.authentication.oidc),
+# Optimize/Identity/Web Modeler share ONE "External Keycloak" connection block
+# (global.identity.keycloak.*) plus per-component client config under global.identity.auth.*.
+# Supplying Keycloak ADMIN credentials at global.identity.keycloak.auth (the same admin/admin from
+# keycloak/keycloak-instance.yaml, copied into this namespace by
+# camunda-secrets-identity-webmodeler.yaml) is what the chart's own values.yaml documents as
+# sufficient for Identity to self-provision the "optimize" (and later "camunda-identity" /
+# "web-modeler") OIDC clients into the existing realm at startup, with auto-generated secrets - no
+# manual `kcadm` scripting needed the way keycloak/create-realm-and-clients.sh does for oc-client.
+# VERIFY AT INSTALL TIME: if that self-provisioning doesn't take effect against this repo's
+# Keycloak Operator + quay-optimized image, fall back to scripting the "optimize" client into
+# create-realm-and-clients.sh (mirroring oc-client) and pointing
+# global.identity.auth.optimize.secret.existingSecret at the resulting Secret.
+
+global:
+  identity:
+    keycloak:
+      url:
+        protocol: "http"
+        host: "keycloak-service.keycloak.svc.cluster.local"
+        port: "18080"
+      # Both already match the realm keycloak/create-realm-and-clients.sh creates - no override
+      # needed, spelled out here for clarity.
+      contextPath: "/auth"
+      realm: "/realms/camunda-platform"
+      auth:
+        adminUser: admin
+        secret:
+          existingSecret: "keycloak-admin-credentials"
+          existingSecretKey: "password"
+    auth:
+      enabled: true
+      type: "KEYCLOAK"
+      optimize:
+        # Works if a port-forward to Optimize is created to 8083 (see the README's "Accessing the
+        # UIs" step in the Variant section).
+        redirectUrl: "http://localhost:8083"
+
+optimize:
+  enabled: true
+  contextPath: "/optimize"
+  # Must match orchestration.partitionCount (minimal_setup_elasticsearch.yaml: "1").
+  partitionCount: "1"
+  database:
+    elasticsearch:
+      enabled: true
+      # true = connect to an externally-managed Elasticsearch (the ECK instance), not the
+      # deprecated bundled Bitnami subchart.
+      external: true
+      url:
+        protocol: http
+        host: elasticsearch-es-http.elasticsearch.svc.cluster.local
+        port: 9200
+      auth:
+        username: elastic
+        secret:
+          existingSecret: "elasticsearch-es-elastic-user"
+          existingSecretKey: "elastic"
+  resources:
+    requests:
+      cpu: 600m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi

@@ -1,0 +1,32 @@
+# Two more databases on the SAME shared CNPG instance as ../postgresql-cluster.yaml (pg-camunda) -
+# for Management Identity and Web Modeler's own app data (users/roles/OIDC client config for
+# Identity; projects/diagrams for Web Modeler), consumed by ../../with_identity_webmodeler.yaml.
+# Same pattern as pg-camunda's existing "keycloak" database: one instance, one Database CR per
+# consumer, rather than a dedicated CNPG Cluster per component.
+#
+# The "identity" and "webmodeler" login roles these databases are owned by are declared on the
+# Cluster resource itself (../postgresql-cluster.yaml's spec.managed.roles) - CNPG has no separate
+# "Role" CRD, so that file had to be extended directly rather than adding a role via a standalone
+# resource here.
+
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: pg-camunda-identity
+  namespace: postgres
+spec:
+  name: identity
+  owner: identity
+  cluster:
+    name: pg-camunda
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: pg-camunda-webmodeler
+  namespace: postgres
+spec:
+  name: webmodeler
+  owner: webmodeler
+  cluster:
+    name: pg-camunda

@@ -1,0 +1,86 @@
+# Layer 1 (alternate base) - Elasticsearch-based counterpart to minimal_setup.yaml. MUTUALLY
+# EXCLUSIVE with it: apply ONE of the two as your base, never both via the same `-f ... -f ...`
+# line - both set orchestration.data.secondaryStorage, just to different backends.
+#
+# This exists because Optimize (with_optimize.yaml) has no RDBMS mode - it only reads
+# Elasticsearch/OpenSearch, importing the records the "camunda" exporter below writes there. That
+# makes secondary storage a hard fork at the base layer, unlike every other capability in this
+# directory, which is why this is a second base file rather than another additive `-f` layer on
+# top of minimal_setup.yaml. Everything else composes on top of either base the same way -
+# with_permissions.yaml works unmodified against both; see the README's "Variant: Elasticsearch +
+# Optimize + Identity + Web Modeler" section for the full picture of what composes with this file
+# (with_optimize.yaml, with_identity_webmodeler.yaml).
+#
+# Per Camunda's migration-from-bitnami guidance
+# (https://docs.camunda.io/docs/self-managed/deployment/helm/operational-tasks/migration-from-bitnami/bitnami-to-operators/),
+# this points at an ECK-operator-managed Elasticsearch (elasticsearch/elasticsearch-cluster.yaml)
+# instead of the deprecated bundled Bitnami subchart.
+
+global:
+  security:
+    authentication:
+      method: basic   # overridden to oidc by with_permissions.yaml, same as minimal_setup.yaml
+
+orchestration:
+  contextPath: "/"
+  clusterSize: "1"
+  partitionCount: "1"
+  replicationFactor: "1"
+  pvcSize: 20Gi
+  data:
+    secondaryStorage:
+      # rdbms | elasticsearch | opensearch. This file uses elasticsearch - the counterpart
+      # minimal_setup.yaml uses rdbms. Required to be explicit as of chart 14.x (8.9).
+      type: elasticsearch
+      elasticsearch:
+        # elasticsearch-es-http is the ECK-managed read/write Service from
+        # elasticsearch/elasticsearch-cluster.yaml (elasticsearch namespace) - reached
+        # cross-namespace via its FQDN.
+        url: "http://elasticsearch-es-http.elasticsearch.svc.cluster.local:9200"
+        auth:
+          username: elastic
+          secret:
+            # Copied into this (camunda) namespace by elasticsearch/copy-elastic-secret.sh, since
+            # ECK generates this password itself and owns the original Secret in the
+            # "elasticsearch" namespace.
+            existingSecret: "elasticsearch-es-elastic-user"
+            existingSecretKey: "elastic"
+  exporters:
+    # The Elasticsearch-based Camunda exporter writes Operate/Tasklist/Admin history - and
+    # everything Optimize (with_optimize.yaml) imports - into Elasticsearch.
+    camunda:
+      enabled: true
+    # The RDBMS exporter stays off - this base uses Elasticsearch, not PostgreSQL, for secondary
+    # storage.
+    rdbms:
+      enabled: false
+  resources:
+    requests:
+      cpu: "400m"
+      memory: "1000Mi"
+    limits:
+      cpu: "800m"
+      memory: "2000Mi"
+
+# The bundled Elasticsearch subchart is off - an ECK-managed instance is used instead (see header).
+elasticsearch:
+  enabled: false
+
+identity:
+  enabled: false
+identityPostgresql:
+  enabled: false
+identityKeycloak:
+  enabled: false
+optimize:
+  enabled: false
+connectors:
+  enabled: false
+webModeler:
+  enabled: false
+console:
+  enabled: false
+postgresql:
+  enabled: false
+prometheusServiceMonitor:
+  enabled: false
