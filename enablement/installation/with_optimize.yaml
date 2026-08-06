@@ -6,44 +6,69 @@
 # about the exporter or the Elasticsearch cluster itself changes here, only Optimize's own
 # deployment and its OIDC wiring.
 #
-# global.identity.* below is the foundation with_identity_webmodeler.yaml builds on: unlike
-# orchestration's own OIDC client (with_permissions.yaml's orchestration.security.authentication.oidc),
-# Optimize/Identity/Web Modeler share ONE "External Keycloak" connection block
-# (global.identity.keycloak.*) plus per-component client config under global.identity.auth.*.
-# Supplying Keycloak ADMIN credentials at global.identity.keycloak.auth (the same admin/admin from
-# keycloak/keycloak-instance.yaml, copied into this namespace by
-# camunda-secrets-identity-webmodeler.yaml) is what the chart's own values.yaml documents as
-# sufficient for Identity to self-provision the "optimize" (and later "camunda-identity" /
-# "web-modeler") OIDC clients into the existing realm at startup, with auto-generated secrets - no
-# manual `kcadm` scripting needed the way keycloak/create-realm-and-clients.sh does for oc-client.
-# VERIFY AT INSTALL TIME: if that self-provisioning doesn't take effect against this repo's
-# Keycloak Operator + quay-optimized image, fall back to scripting the "optimize" client into
-# create-realm-and-clients.sh (mirroring oc-client) and pointing
-# global.identity.auth.optimize.secret.existingSecret at the resulting Secret.
+# global.identity.auth.* below is the foundation with_identity_webmodeler.yaml builds on: unlike
+# orchestration's own OIDC client (with_permissions.yaml's orchestration.security.authentication.oidc,
+# overridden for this track in with_identity_webmodeler.yaml), Optimize/Identity/Web Modeler share
+# ONE OIDC provider connection block (global.identity.auth's top-level publicIssuerUrl/
+# issuerBackendUrl/authUrl/tokenUrl/jwksUrl) plus per-component client config under
+# global.identity.auth.*.
+#
+# Every OIDC client is created explicitly, up front, by keycloak/create-realm-and-clients.sh
+# (CREATE_VARIANT_CLIENTS=true), rather than relying on Management Identity's own startup-time
+# self-provisioning (that self-provisioning path is tied to global.identity.auth.type: "KEYCLOAK"
+# and was found non-idempotent in this repo's testing - see this file's auth.type comment below
+# and create-realm-and-clients.sh's header comment). type: "GENERIC" (below) is what actually
+# disables it - Camunda's "external Keycloak" doc page still describes the KEYCLOAK-type flow:
+# https://docs.camunda.io/docs/self-managed/deployment/helm/configure/authentication-and-authorization/external-keycloak/#configure-components-using-oidc
+# but this guide instead follows the generic-OIDC-provider doc's complete example, treating
+# Keycloak as just another OIDC IdP:
+# https://docs.camunda.io/docs/self-managed/deployment/helm/configure/authentication-and-authorization/generic-oidc-provider/#complete-configuration-example
+#
+# All Keycloak-facing credentials below (admin password, Optimize's client secret) come from one
+# consolidated Secret, "camunda-credentials", using the exact key names from Camunda's own
+# external-Keycloak example - written by create-realm-and-clients.sh alongside the clients
+# themselves, so the Keycloak side and the K8s Secret side can never drift out of sync.
 
 global:
   identity:
-    keycloak:
-      url:
-        protocol: "http"
-        host: "keycloak-service.keycloak.svc.cluster.local"
-        port: "18080"
-      # Both already match the realm keycloak/create-realm-and-clients.sh creates - no override
-      # needed, spelled out here for clarity.
-      contextPath: "/auth"
-      realm: "/realms/camunda-platform"
-      auth:
-        adminUser: admin
-        secret:
-          existingSecret: "keycloak-admin-credentials"
-          existingSecretKey: "password"
     auth:
       enabled: true
-      type: "KEYCLOAK"
+      # GENERIC, not KEYCLOAK: the KEYCLOAK type activates Identity's own "keycloak" Spring
+      # profile, which runs KeycloakPresetInitializer - it unconditionally tries to CREATE every
+      # resource-server client (orchestration, optimize, ...) via Keycloak's admin API on every
+      # startup, so it 409-crashes as soon as those clients already exist (which
+      # create-realm-and-clients.sh guarantees from the very first apply). GENERIC skips that
+      # initializer entirely and treats Keycloak as a plain OIDC provider via the explicit
+      # endpoint URLs below - same pattern orchestration's own OIDC config already uses
+      # (../with_permissions.yaml's orchestration.security.authentication.oidc.type: "GENERIC").
+      # https://docs.camunda.io/docs/self-managed/deployment/helm/configure/authentication-and-authorization/generic-oidc-provider/
+      type: "GENERIC"
+      publicIssuerUrl: http://keycloak-service.keycloak.svc.cluster.local:18080/auth/realms/camunda-platform
+      issuerBackendUrl: http://keycloak-service.keycloak.svc.cluster.local:18080/auth/realms/camunda-platform
+      authUrl: http://keycloak-service.keycloak.svc.cluster.local:18080/auth/realms/camunda-platform/protocol/openid-connect/auth
+      tokenUrl: http://keycloak-service.keycloak.svc.cluster.local:18080/auth/realms/camunda-platform/protocol/openid-connect/token
+      jwksUrl: http://keycloak-service.keycloak.svc.cluster.local:18080/auth/realms/camunda-platform/protocol/openid-connect/certs
+      identity:
+        # Matches create-realm-and-clients.sh's IDENTITY_CLIENT_ID/IDENTITY_AUDIENCE defaults.
+        # Unlike KEYCLOAK type, GENERIC mode has no admin-API access to Keycloak, so Identity
+        # needs its own client secret (below) and a claim-based rule (initialClaimName/Value) to
+        # recognize the pre-created "admin" user as its first admin, instead of the
+        # KEYCLOAK-only identity.firstUser mechanism (../with_identity_webmodeler.yaml no longer
+        # sets it).
+        clientId: camunda-identity
+        audience: camunda-identity-resource-server
+        secret:
+          existingSecret: "camunda-credentials"
+          existingSecretKey: "identity-client-secret"
+        initialClaimName: preferred_username
+        initialClaimValue: admin
       optimize:
         # Works if a port-forward to Optimize is created to 8083 (see the README's "Accessing the
         # UIs" step in the Variant section).
         redirectUrl: "http://localhost:8083"
+        secret:
+          existingSecret: "camunda-credentials"
+          existingSecretKey: "identity-optimize-client-token"
 
 optimize:
   enabled: true

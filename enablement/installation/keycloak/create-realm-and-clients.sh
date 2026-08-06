@@ -5,7 +5,7 @@
 # (bundled in the Keycloak image) inside the Keycloak pod via `kubectl exec` - no port-forward
 # needed. Idempotent - safe to re-run.
 #
-# Clients created:
+# RDBMS track clients (always created):
 #   - oc-client         -> the Orchestration Cluster's OIDC client (interactive login for
 #                          Operate/Tasklist + the audience every token must carry). Its secret
 #                          is written to the K8s secret camunda-keycloak-client-secrets/oc-secret.
@@ -13,7 +13,38 @@
 #                          ../../utils/deploy-bpmn.sh and create-process-instances.sh (via a
 #                          `c8ctl add profile` with --clientId/--clientSecret) to authenticate
 #                          against the v2 API. Gets its own audience mapper so its tokens are
-#                          accepted by the orchestration cluster (aud: oc-client).
+#                          accepted by the orchestration cluster (aud: $ORCHESTRATION_AUDIENCE).
+#
+# Variant section clients (CREATE_VARIANT_CLIENTS=true only - see
+# ../ENABLEMENT_FULL_INSTALLATION_README.MD): follows Camunda's own "Option 1: prepare an existing
+# realm" pattern for external Keycloak -
+# https://docs.camunda.io/docs/self-managed/deployment/helm/configure/authentication-and-authorization/external-keycloak/#configure-components-using-oidc -
+# every OIDC client Management Identity would otherwise need is created explicitly, up front, by
+# this script - rather than relying on Identity's own startup-time self-provisioning
+# (KeycloakPresetInitializer) for anything beyond its own client lookup. That self-provisioning
+# path was tried first and found to be non-idempotent in this repo's testing: it always attempts
+# to CREATE its resource-server clients unconditionally (no existence check), so it 409-crashes on
+# every restart after the first success, and even a from-scratch attempt intermittently produced a
+# client with authorizationServicesEnabled=true that a later step then refuses to manage. Explicit
+# client preparation (this script) plus identity.env's KEYCLOAK_REALM/IDENTITY_CLIENTID (see
+# ../with_identity_webmodeler.yaml) sidesteps that path entirely per Camunda's documented Option 1.
+#   - camunda-identity -> Management Identity's own client. Confidential, service account roles
+#                         on, Authorization explicitly OFF - exactly the settings Camunda's own
+#                         "connect to an existing Keycloak" guide specifies for this client:
+#                         https://docs.camunda.io/docs/next/self-managed/components/management-identity/configuration/connect-to-an-existing-keycloak/
+#   - orchestration    -> same purpose as oc-client above, but for the Variant section - matches
+#                         the chart's own default clientId/audience for
+#                         orchestration.security.authentication.oidc (see
+#                         ../with_identity_webmodeler.yaml's override of ../with_permissions.yaml).
+#   - optimize         -> Optimize's own client. Audience is "optimize-api" (chart default,
+#                         global.identity.auth.optimize.audience) - a resource-server identifier,
+#                         not this client's own clientId, so it needs a "custom" audience mapper.
+#   - web-modeler      -> Web Modeler's own client. PUBLIC (no secret) - Web Modeler authenticates
+#                         via the browser (PKCE), never as a confidential backend client.
+# All four (plus the admin password and the "admin" first-user password) are written into a single
+# consolidated K8s Secret, "camunda-credentials" in the camunda namespace, using the exact key
+# names Camunda's own external-Keycloak example uses - see ../with_optimize.yaml and
+# ../with_identity_webmodeler.yaml for where each key is consumed.
 #
 # Prerequisites: ../postgresql/postgresql-cluster.yaml and keycloak-instance.yaml already applied and ready.
 #
@@ -23,11 +54,20 @@
 #   - operator      / operator      -> realm role "operator"   (Operate: full process access)
 #   - tasklist-user / tasklist-user -> realm role "task-user"  (Tasklist: user tasks only)
 #   - admin         / admin         -> no realm role; matches defaultRoles.admin.users in
-#                                      ../with_permissions.yaml, so gets Camunda's built-in admin
+#                                      ../with_permissions.yaml, so gets Camunda's built-in admin.
+#                                      Also reused as Management Identity's first user in the
+#                                      Variant section (identity.firstUser, username overridden
+#                                      from the chart default "demo" to "admin" for a consistent
+#                                      login across this whole guide).
 #   - oc-client        / oc-client        -> the interactive OIDC client's ID/secret pair
 #   - benchmark-client / benchmark-client -> the service-account client's ID/secret pair
 #                                            (matches the `c8ctl add profile` example in
 #                                            ../ENABLEMENT_FULL_INSTALLATION_README.MD)
+#   - camunda-identity / camunda-identity -> Management Identity's own client ID/secret pair
+#                                            (Variant section only)
+#   - orchestration    / orchestration    -> the Variant section's counterpart to oc-client
+#   - optimize         / optimize         -> Optimize's client ID/secret pair (Variant section)
+#   - web-modeler      / (n/a, public)     -> Web Modeler's client ID (Variant section, no secret)
 
 set -euo pipefail
 
@@ -42,6 +82,27 @@ BENCHMARK_CLIENT_SECRET=${BENCHMARK_CLIENT_SECRET:-benchmark-client}
 # Wildcard so it covers whatever callback path Camunda's OIDC client constructs under the
 # redirectUrl host:port configured in ../with_permissions.yaml.
 REDIRECT_URI=${REDIRECT_URI:-http://localhost:8080/*}
+# RDBMS track: leave at the default (benchmark-client's tokens carry aud: oc-client). Variant
+# section (CREATE_VARIANT_CLIENTS=true) overrides this to "orchestration".
+ORCHESTRATION_AUDIENCE=${ORCHESTRATION_AUDIENCE:-$CLIENT_ID}
+
+# Variant section only (see ../ENABLEMENT_FULL_INSTALLATION_README.MD) - see the header comment
+# above for why these exist and what they replace.
+CREATE_VARIANT_CLIENTS=${CREATE_VARIANT_CLIENTS:-false}
+IDENTITY_CLIENT_ID=${IDENTITY_CLIENT_ID:-camunda-identity}
+IDENTITY_CLIENT_SECRET=${IDENTITY_CLIENT_SECRET:-camunda-identity}
+IDENTITY_AUDIENCE=${IDENTITY_AUDIENCE:-camunda-identity-resource-server}
+IDENTITY_REDIRECT_URI=${IDENTITY_REDIRECT_URI:-http://localhost:8084/*}
+VARIANT_ORCHESTRATION_CLIENT_ID=${VARIANT_ORCHESTRATION_CLIENT_ID:-orchestration}
+VARIANT_ORCHESTRATION_CLIENT_SECRET=${VARIANT_ORCHESTRATION_CLIENT_SECRET:-orchestration}
+OPTIMIZE_CLIENT_ID=${OPTIMIZE_CLIENT_ID:-optimize}
+OPTIMIZE_CLIENT_SECRET=${OPTIMIZE_CLIENT_SECRET:-optimize}
+OPTIMIZE_AUDIENCE=${OPTIMIZE_AUDIENCE:-optimize-api}
+OPTIMIZE_REDIRECT_URI=${OPTIMIZE_REDIRECT_URI:-http://localhost:8083/*}
+WEBMODELER_CLIENT_ID=${WEBMODELER_CLIENT_ID:-web-modeler}
+WEBMODELER_REDIRECT_URI=${WEBMODELER_REDIRECT_URI:-http://localhost:8070/*}
+FIRSTUSER_USERNAME=${FIRSTUSER_USERNAME:-admin}
+FIRSTUSER_PASSWORD=${FIRSTUSER_PASSWORD:-admin}
 
 KCADM="/opt/keycloak/bin/kcadm.sh"
 kc_exec() { kubectl exec -n "$KEYCLOAK_NAMESPACE" "$KEYCLOAK_POD" -- "$KCADM" "$@"; }
@@ -70,16 +131,27 @@ for ROLE in operator task-user; do
     || echo "  -> role '$ROLE' already exists, skipping"
 done
 
-# Adds an audience mapper to a client so issued tokens carry `aud: oc-client` - matches
-# orchestration.security.authentication.oidc.audience in ../with_permissions.yaml. Every client
-# whose tokens hit the orchestration cluster needs this.
+# Adds an audience mapper to a client. Two modes: "client" targets an existing CLIENT's own
+# clientId as the audience (`included.client.audience`) - used below for oc-client/orchestration/
+# benchmark-client, whose audience equals their own clientId by chart convention/default. "custom"
+# targets an arbitrary, non-client audience string (`included.custom.audience`) - used below for
+# camunda-identity ("camunda-identity-resource-server") and optimize ("optimize-api"), whose
+# audiences are resource-server identifiers, not registered clients.
 add_audience_mapper() {
   local client_uuid=$1
+  local mode=$2
+  local audience=$3
+  local audience_config
+  if [[ "$mode" == "custom" ]]; then
+    audience_config="{\"included.custom.audience\":\"$audience\",\"access.token.claim\":\"true\"}"
+  else
+    audience_config="{\"included.client.audience\":\"$audience\",\"access.token.claim\":\"true\"}"
+  fi
   kc_exec create "clients/$client_uuid/protocol-mappers/models" -r "$REALM" \
     -s name=aud-mapper \
     -s protocol=openid-connect \
     -s protocolMapper=oidc-audience-mapper \
-    -s "config={\"included.client.audience\":\"$CLIENT_ID\",\"access.token.claim\":\"true\"}" \
+    -s "config=$audience_config" \
     || echo "  -> audience mapper already exists, skipping"
 }
 
@@ -91,6 +163,7 @@ kc_exec create clients -r "$REALM" \
   -s publicClient=false \
   -s standardFlowEnabled=true \
   -s serviceAccountsEnabled=true \
+  -s authorizationServicesEnabled=false \
   -s "redirectUris=[\"$REDIRECT_URI\"]" \
   -s 'webOrigins=["+"]' \
   || echo "  -> client '$CLIENT_ID' already exists, skipping"
@@ -98,7 +171,7 @@ kc_exec create clients -r "$REALM" \
 OC_CLIENT_UUID=$(kc_exec get clients -r "$REALM" -q clientId="$CLIENT_ID" --fields id --format csv --noquotes | tr -d '\r')
 
 echo "Adding an audience mapper to '$CLIENT_ID' so tokens carry 'aud: $CLIENT_ID' ..."
-add_audience_mapper "$OC_CLIENT_UUID"
+add_audience_mapper "$OC_CLIENT_UUID" client "$CLIENT_ID"
 
 echo "Writing the client secret to '$CAMUNDA_NAMESPACE/camunda-keycloak-client-secrets' (key: oc-secret) ..."
 # For a real deployment, generate the client secret above instead of hardcoding it, and
@@ -120,12 +193,13 @@ kc_exec create clients -r "$REALM" \
   -s publicClient=false \
   -s standardFlowEnabled=false \
   -s serviceAccountsEnabled=true \
+  -s authorizationServicesEnabled=false \
   || echo "  -> client '$BENCHMARK_CLIENT_ID' already exists, skipping"
 
 BENCHMARK_CLIENT_UUID=$(kc_exec get clients -r "$REALM" -q clientId="$BENCHMARK_CLIENT_ID" --fields id --format csv --noquotes | tr -d '\r')
 
-echo "Adding an audience mapper to '$BENCHMARK_CLIENT_ID' so its tokens carry 'aud: $CLIENT_ID' ..."
-add_audience_mapper "$BENCHMARK_CLIENT_UUID"
+echo "Adding an audience mapper to '$BENCHMARK_CLIENT_ID' so its tokens carry 'aud: $ORCHESTRATION_AUDIENCE' ..."
+add_audience_mapper "$BENCHMARK_CLIENT_UUID" client "$ORCHESTRATION_AUDIENCE"
 
 create_example_user() {
   local username=$1 password=$2 role=$3
@@ -150,8 +224,111 @@ create_example_user tasklist-user tasklist-user task-user
 echo "Creating example user 'admin' / 'admin' (matches defaultRoles.admin.users, no realm role) ..."
 create_example_user admin admin ""
 
+if [[ "$CREATE_VARIANT_CLIENTS" == "true" ]]; then
+  echo ""
+  echo "CREATE_VARIANT_CLIENTS=true - preparing the Variant section's OIDC clients ..."
+
+  echo "Creating client '$IDENTITY_CLIENT_ID' (Management Identity's own client) ..."
+  kc_exec create clients -r "$REALM" \
+    -s clientId="$IDENTITY_CLIENT_ID" \
+    -s secret="$IDENTITY_CLIENT_SECRET" \
+    -s enabled=true \
+    -s publicClient=false \
+    -s standardFlowEnabled=true \
+    -s serviceAccountsEnabled=true \
+    -s authorizationServicesEnabled=false \
+    -s "redirectUris=[\"$IDENTITY_REDIRECT_URI\"]" \
+    -s 'webOrigins=["+"]' \
+    || echo "  -> client '$IDENTITY_CLIENT_ID' already exists, skipping"
+
+  IDENTITY_CLIENT_UUID=$(kc_exec get clients -r "$REALM" -q clientId="$IDENTITY_CLIENT_ID" --fields id --format csv --noquotes | tr -d '\r')
+
+  echo "Adding an audience mapper to '$IDENTITY_CLIENT_ID' so its tokens carry 'aud: $IDENTITY_AUDIENCE' ..."
+  add_audience_mapper "$IDENTITY_CLIENT_UUID" custom "$IDENTITY_AUDIENCE"
+
+  # Management Identity's client needs these three realm-management client roles on its OWN
+  # service account (not just the master-realm admin user configured via
+  # global.identity.keycloak.auth.adminUser) to manage users/clients/roles in the target realm at
+  # runtime - without them, Identity authenticates fine but every subsequent admin call 403s. Per
+  # Camunda's connect-to-an-existing-keycloak guide:
+  # https://docs.camunda.io/docs/next/self-managed/components/management-identity/configuration/connect-to-an-existing-keycloak/
+  echo "Granting realm-management service-account roles (manage-clients, manage-realm, manage-users) to '$IDENTITY_CLIENT_ID' ..."
+  kc_exec add-roles -r "$REALM" \
+    --uusername "service-account-$IDENTITY_CLIENT_ID" \
+    --cclientid realm-management \
+    --rolename manage-clients \
+    --rolename manage-realm \
+    --rolename manage-users \
+    || echo "  -> roles already assigned, skipping"
+
+  echo "Creating client '$VARIANT_ORCHESTRATION_CLIENT_ID' (secret: '$VARIANT_ORCHESTRATION_CLIENT_SECRET') ..."
+  kc_exec create clients -r "$REALM" \
+    -s clientId="$VARIANT_ORCHESTRATION_CLIENT_ID" \
+    -s secret="$VARIANT_ORCHESTRATION_CLIENT_SECRET" \
+    -s enabled=true \
+    -s publicClient=false \
+    -s standardFlowEnabled=true \
+    -s serviceAccountsEnabled=true \
+    -s authorizationServicesEnabled=false \
+    -s "redirectUris=[\"$REDIRECT_URI\"]" \
+    -s 'webOrigins=["+"]' \
+    || echo "  -> client '$VARIANT_ORCHESTRATION_CLIENT_ID' already exists, skipping"
+
+  ORCH_CLIENT_UUID=$(kc_exec get clients -r "$REALM" -q clientId="$VARIANT_ORCHESTRATION_CLIENT_ID" --fields id --format csv --noquotes | tr -d '\r')
+
+  echo "Adding an audience mapper to '$VARIANT_ORCHESTRATION_CLIENT_ID' so tokens carry 'aud: $VARIANT_ORCHESTRATION_CLIENT_ID' ..."
+  add_audience_mapper "$ORCH_CLIENT_UUID" client "$VARIANT_ORCHESTRATION_CLIENT_ID"
+
+  echo "Creating client '$OPTIMIZE_CLIENT_ID' (secret: '$OPTIMIZE_CLIENT_SECRET') ..."
+  kc_exec create clients -r "$REALM" \
+    -s clientId="$OPTIMIZE_CLIENT_ID" \
+    -s secret="$OPTIMIZE_CLIENT_SECRET" \
+    -s enabled=true \
+    -s publicClient=false \
+    -s standardFlowEnabled=true \
+    -s serviceAccountsEnabled=true \
+    -s authorizationServicesEnabled=false \
+    -s "redirectUris=[\"$OPTIMIZE_REDIRECT_URI\"]" \
+    -s 'webOrigins=["+"]' \
+    || echo "  -> client '$OPTIMIZE_CLIENT_ID' already exists, skipping"
+
+  OPTIMIZE_CLIENT_UUID=$(kc_exec get clients -r "$REALM" -q clientId="$OPTIMIZE_CLIENT_ID" --fields id --format csv --noquotes | tr -d '\r')
+
+  echo "Adding an audience mapper to '$OPTIMIZE_CLIENT_ID' so its tokens carry 'aud: $OPTIMIZE_AUDIENCE' ..."
+  add_audience_mapper "$OPTIMIZE_CLIENT_UUID" custom "$OPTIMIZE_AUDIENCE"
+
+  echo "Creating public client '$WEBMODELER_CLIENT_ID' (no secret - browser/PKCE login) ..."
+  kc_exec create clients -r "$REALM" \
+    -s clientId="$WEBMODELER_CLIENT_ID" \
+    -s enabled=true \
+    -s publicClient=true \
+    -s standardFlowEnabled=true \
+    -s serviceAccountsEnabled=false \
+    -s authorizationServicesEnabled=false \
+    -s "redirectUris=[\"$WEBMODELER_REDIRECT_URI\"]" \
+    -s 'webOrigins=["+"]' \
+    || echo "  -> client '$WEBMODELER_CLIENT_ID' already exists, skipping"
+
+  echo "Writing '$CAMUNDA_NAMESPACE/camunda-credentials' (Camunda's own external-Keycloak secret naming - see ../with_optimize.yaml and ../with_identity_webmodeler.yaml) ..."
+  kubectl create secret generic camunda-credentials \
+    --namespace "$CAMUNDA_NAMESPACE" \
+    --from-literal=identity-keycloak-admin-password="$ADMIN_PASS" \
+    --from-literal=identity-firstuser-password="$FIRSTUSER_PASSWORD" \
+    --from-literal=identity-client-secret="$IDENTITY_CLIENT_SECRET" \
+    --from-literal=identity-orchestration-client-token="$VARIANT_ORCHESTRATION_CLIENT_SECRET" \
+    --from-literal=identity-optimize-client-token="$OPTIMIZE_CLIENT_SECRET" \
+    --dry-run=client -o yaml | kubectl apply -f -
+
+  echo "Creating first user '$FIRSTUSER_USERNAME' / '$FIRSTUSER_PASSWORD' (Management Identity login, matches identity.firstUser.username override) ..."
+  create_example_user "$FIRSTUSER_USERNAME" "$FIRSTUSER_PASSWORD" ""
+fi
+
 echo ""
 echo "Done - realm: $REALM"
-echo "  clients: $CLIENT_ID / $CLIENT_SECRET (interactive), $BENCHMARK_CLIENT_ID / $BENCHMARK_CLIENT_SECRET (service account)"
+echo "  clients: $CLIENT_ID / $CLIENT_SECRET (interactive), $BENCHMARK_CLIENT_ID / $BENCHMARK_CLIENT_SECRET (service account, aud: $ORCHESTRATION_AUDIENCE)"
+if [[ "$CREATE_VARIANT_CLIENTS" == "true" ]]; then
+  echo "  Variant section clients: $IDENTITY_CLIENT_ID, $VARIANT_ORCHESTRATION_CLIENT_ID, $OPTIMIZE_CLIENT_ID, $WEBMODELER_CLIENT_ID (public)"
+  echo "  Variant section secret: camunda-credentials (identity-keycloak-admin-password, identity-firstuser-password, identity-client-secret, identity-orchestration-client-token, identity-optimize-client-token)"
+fi
 echo "  roles: operator, task-user"
 echo "  example users (all username=password): operator, tasklist-user, admin"

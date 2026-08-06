@@ -32,7 +32,7 @@ This directory demonstrates two things about a Camunda 8.9 installation, on top 
 - [Restore](#restore)
 - [Reset](#reset)
 - [Other files in this directory](#other-files-in-this-directory)
-- [Variant: Elasticsearch + Optimize + Identity + Web Modeler](#variant-elasticsearch--optimize--identity--web-modeler) — [V1](#v1-install-elasticsearch) [V2](#v2-add-identity--web-modeler-databases) [V3](#v3-copy-secrets) [V4](#v4-install-camunda) [V5](#v5-accessing-the-new-uis)
+- [Variant: Elasticsearch + Optimize + Identity + Web Modeler](#variant-elasticsearch--optimize--identity--web-modeler) — [V1](#v1-create-a-local-cluster-and-install-operators) [V2](#v2-install-postgresql) [V3](#v3-install-keycloak) [V4](#v4-create-realm-clients-and-users) [V5](#v5-install-elasticsearch) [V6](#v6-add-identity--web-modeler-databases) [V7](#v7-copy-secrets) [V8](#v8-install-camunda) [V9](#v9-create-some-data) [V10](#v10-accessing-the-new-uis)
 - [Notes / caveats](#notes--caveats)
 
 ## Architecture Overview
@@ -119,7 +119,7 @@ kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 --timeout=300s statefuls
 - `camunda` namespace is created from `cluster.create`.
 - `minio` and `postgres` namespaces are created by their own manifests in steps 02/03.
 - `keycloak` was created above.
-- `elastic-system` was created above (ECK operator only; the `elasticsearch` namespace for the actual cluster is created by [V1](#v1-install-elasticsearch)).
+- `elastic-system` was created above (ECK operator only; the `elasticsearch` namespace for the actual cluster is created by [V5](#v5-install-elasticsearch)).
 
 ---
 
@@ -414,46 +414,178 @@ Three rules keep them consistent:
 
 # Variant: Elasticsearch + Optimize + Identity + Web Modeler
 
-An alternative to steps [03](#03-install-postgresql)/[06](#06-install-camunda) above that swaps
-the orchestration cluster's secondary storage from RDBMS to **Elasticsearch** (via the **ECK
-operator**, replacing the deprecated bundled Bitnami subchart per Camunda's
+An alternative to the main Installation walkthrough above that swaps the orchestration cluster's
+secondary storage from RDBMS to **Elasticsearch** (via the **ECK operator**, replacing the
+deprecated bundled Bitnami subchart per Camunda's
 [migration-from-bitnami](https://docs.camunda.io/docs/self-managed/deployment/helm/operational-tasks/migration-from-bitnami/bitnami-to-operators/)
 guidance) and adds **Optimize**, **Management Identity**, and **Web Modeler** on top. Optimize has
 no RDBMS mode — it only reads Elasticsearch/OpenSearch — so this is a genuinely alternate base,
 **mutually exclusive with `minimal_setup.yaml`** at the storage layer: never apply both
 `minimal_setup.yaml` and `minimal_setup_elasticsearch.yaml` in the same `-f ... -f ...` line.
 
-It reuses everything else the main guide already deployed: Keycloak and its realm/clients/users
-(steps [04](#04-install-keycloak)/[05](#05-create-realm-clients-and-users)) provide OIDC — Identity
-requires it — and the same shared CNPG PostgreSQL instance from step
-[03](#03-install-postgresql) gains two more databases for Identity's and Web Modeler's own app
-data (not Camunda's secondary storage, which lives in Elasticsearch here). `with_permissions.yaml`
-composes unchanged on top of either storage base.
+**This section is fully self-contained** — every command needed for this track, [V1](#v1-create-a-local-cluster-and-install-operators)
+through [V10](#v10-accessing-the-new-uis), is below; you don't need to jump back into the main
+Installation walkthrough above. It does duplicate some of the same shared building blocks the
+RDBMS track uses (the local cluster, the CNPG/Keycloak operators, the `pg-camunda` Postgres
+instance, Keycloak + its realm — Identity requires OIDC) plus the ECK operator/Elasticsearch this
+track alone needs. If you already ran the main walkthrough on this same cluster, the early `kubectl
+apply`s below are no-ops (everything here is idempotent); otherwise this is a complete path from an
+empty cluster. `with_permissions.yaml` composes unchanged on top of either storage base. Monitoring
+([01](#01-install-prometheusgrafana)) and backup/restore ([02](#02-install-minio),
+[08](#08-enable-scheduled-backups)) are independent layers this variant doesn't add — see the main
+guide above if you also want those on top.
 
-| Concern                       | Kind                | How                                                                          | Namespace    | File(s)                                                        |
-|--------------------------------|---------------------|-------------------------------------------------------------------------------|--------------|-----------------------------------------------------------------|
-| Secondary storage (base)      | External dependency | Elasticsearch via ECK operator                                               | `elasticsearch` | `elasticsearch/elasticsearch-cluster.yaml`                     |
-| Base orchestration (alt.)     | Camunda platform    | Single node, Elasticsearch secondary storage, basic auth                     | `camunda`    | `minimal_setup_elasticsearch.yaml`                              |
-| Optimize                      | Camunda platform    | Imports from the same Elasticsearch the orchestration cluster exports into   | `camunda`    | `with_optimize.yaml`                                            |
-| Identity + Web Modeler app DBs | External dependency | Two more databases on the existing shared CNPG instance                     | `postgres`   | `postgresql/postgresql-databases-identity-webmodeler.yaml` (+ roles in `postgresql/postgresql-cluster.yaml`) |
-| Management Identity           | Camunda platform    | Self-provisions its OIDC client in the existing Keycloak realm               | `camunda`    | `with_identity_webmodeler.yaml`                                 |
-| Web Modeler                   | Camunda platform    | Requires Identity; own OIDC client + CNPG-backed project storage             | `camunda`    | `with_identity_webmodeler.yaml`                                 |
-| Chart-consumed secret copies  | Camunda platform    | Elasticsearch/Identity/Web Modeler credentials for the Camunda release       | `camunda`    | `elasticsearch/copy-elastic-secret.sh`, `camunda-secrets-identity-webmodeler.yaml` |
+| Concern                        | Kind                 | How                                                                          | Namespace       | File(s)                                                                    |
+|---------------------------------|----------------------|-------------------------------------------------------------------------------|-----------------|------------------------------------------------------------------------------|
+| App database                   | External dependency  | PostgreSQL via CNPG operator (Keycloak + Identity + Web Modeler)             | `postgres`      | `postgresql/postgresql-cluster.yaml`                                       |
+| Authentication                 | External dependency  | Keycloak via Keycloak operator; realm/clients/users scripted                 | `keycloak`      | `keycloak/keycloak-instance.yaml`, `keycloak/create-realm-and-clients.sh`   |
+| OIDC permissions                | Camunda platform     | Switches auth to OIDC against the in-cluster Keycloak                        | `camunda`       | `with_permissions.yaml`                                                    |
+| Secondary storage (base)       | External dependency  | Elasticsearch via ECK operator                                               | `elasticsearch` | `elasticsearch/elasticsearch-cluster.yaml`                                 |
+| Base orchestration (alt.)      | Camunda platform     | Single node, Elasticsearch secondary storage, basic auth                     | `camunda`       | `minimal_setup_elasticsearch.yaml`                                         |
+| Optimize                       | Camunda platform     | Imports from the same Elasticsearch the orchestration cluster exports into   | `camunda`       | `with_optimize.yaml`                                                       |
+| Identity + Web Modeler app DBs | External dependency  | Two more databases on the shared CNPG instance                              | `postgres`      | `postgresql/postgresql-databases-identity-webmodeler.yaml` (+ roles in `postgresql/postgresql-cluster.yaml`) |
+| Management Identity            | Camunda platform     | Own OIDC client, prepared explicitly (see below)                             | `camunda`       | `with_identity_webmodeler.yaml`                                            |
+| Web Modeler                    | Camunda platform     | Requires Identity; own (public) OIDC client + CNPG-backed project storage   | `camunda`       | `with_identity_webmodeler.yaml`                                            |
+| Chart-consumed secret copies   | Camunda platform     | Elasticsearch/Web Modeler+Identity DB credentials, plus one consolidated `camunda-credentials` Secret for everything Keycloak-facing | `camunda`       | `elasticsearch/copy-elastic-secret.sh`, `camunda-secrets-identity-webmodeler.yaml`, `keycloak/create-realm-and-clients.sh` |
 
 Unlike orchestration's own OIDC client (`with_permissions.yaml`'s
 `orchestration.security.authentication.oidc`), Optimize/Identity/Web Modeler share one "External
 Keycloak" connection block (`global.identity.keycloak.*`, set in `with_optimize.yaml`) plus
-per-component client config under `global.identity.auth.*`. Supplying Keycloak **admin**
-credentials there (the same `admin`/`admin` from `keycloak/keycloak-instance.yaml`) is what the
-chart documents as enough for Identity to self-provision the needed OIDC clients into the existing
-realm at startup, with auto-generated secrets — see the note in step [V4](#v4-install-camunda)
-if that doesn't happen in practice.
+per-component client config under `global.identity.auth.*`.
 
-## V1 Install Elasticsearch
+**Every OIDC client this track needs is created explicitly, up front**, by
+`keycloak/create-realm-and-clients.sh` (V4, `CREATE_VARIANT_CLIENTS=true`) — following Camunda's own
+documented ["Option 1: prepare an existing realm"](https://docs.camunda.io/docs/self-managed/deployment/helm/configure/authentication-and-authorization/external-keycloak/#configure-components-using-oidc)
+pattern for external Keycloak, rather than relying on Management Identity's own startup-time
+self-provisioning for anything beyond its own client lookup. That self-provisioning path (Camunda's
+alternative "Option 2: let Management Identity create a realm") was tried first while building this
+guide and found to be non-idempotent in practice: Identity's `KeycloakPresetInitializer` always
+attempts to *create* its resource-server clients unconditionally (no existence check), so it
+409-crashes on every restart after the first success — and even a from-scratch attempt
+intermittently produced a client with `authorizationServicesEnabled: true` that a later
+initialization step then refused to manage, crash-looping regardless. Explicit, scripted client
+creation (this section's approach) sidesteps that fragility entirely: every client already exists
+with the right settings before Camunda's `helm upgrade --install` ever runs, and every credential —
+the Keycloak admin password, Identity's/Optimize's client secrets — is consolidated into one
+Secret, `camunda-credentials`, using the exact key names from Camunda's own external-Keycloak
+example, written by the same script that creates the matching Keycloak clients so the two can never
+drift out of sync.
+
+## V1 Create a Local Cluster and Install Operators
+
+Tools required locally: `helm`, `kubectl` (aliased as `k`), `kubens` (from `kubectx`), `c8ctl`
+(used by the utility scripts under `../utils/`), cluster-admin rights (the CNPG/Keycloak/ECK
+operators are cluster-scoped), and the ability to add an `/etc/hosts` entry on the machine you
+browse from (for Keycloak login, since port-forwarding is used).
+
+A running Kubernetes cluster. Locally, create one via:
+
+```bash
+make cluster.create   # from deployment-references-repo/local/kubernetes/kind-single-region/
+```
+
+Install the three operators this track needs once per cluster (versions pinned to match the images
+in the manifests — check for current versions before production):
+
+```bash
+# CloudNativePG operator (Postgres for Keycloak + Identity + Web Modeler)
+CNPG_VERSION=1.30.0
+kubectl apply --server-side -f \
+  "https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-${CNPG_VERSION%.*}/releases/cnpg-${CNPG_VERSION}.yaml"
+kubectl rollout status deployment/cnpg-controller-manager -n cnpg-system --timeout=300s
+
+# Keycloak operator (CRDs + controller). Runs in the "keycloak" namespace.
+KEYCLOAK_VERSION=26.3.2
+kubectl create namespace keycloak
+kubectl apply --server-side -f \
+  "https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/${KEYCLOAK_VERSION}/kubernetes/keycloaks.k8s.keycloak.org-v1.yml"
+kubectl apply --server-side -f \
+  "https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/${KEYCLOAK_VERSION}/kubernetes/keycloakrealmimports.k8s.keycloak.org-v1.yml"
+kubectl apply -n keycloak --server-side -f \
+  "https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/${KEYCLOAK_VERSION}/kubernetes/kubernetes.yml"
+kubectl wait --for=condition=available --timeout=300s deployment/keycloak-operator -n keycloak
+
+# Elastic Cloud on Kubernetes (ECK) operator - this track's secondary storage.
+# Versions pinned to match Camunda's own 8.9 operator-based reference.
+ECK_VERSION=3.3.2
+kubectl create namespace elastic-system
+kubectl apply --server-side -f \
+  "https://download.elastic.co/downloads/eck/${ECK_VERSION}/crds.yaml"
+kubectl apply -n elastic-system --server-side -f \
+  "https://download.elastic.co/downloads/eck/${ECK_VERSION}/operator.yaml"
+kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 --timeout=300s statefulset/elastic-operator -n elastic-system
+```
+
+- `camunda` namespace is created from `cluster.create`.
+- `keycloak` and `elastic-system` were created above.
+- `postgres` is created by its own manifest in [V2](#v2-install-postgresql); `elasticsearch` (the
+  actual ES cluster's namespace) is created by [V5](#v5-install-elasticsearch).
+
+Run every remaining command in this section from `enablement/installation/`.
+
+## V2 Install PostgreSQL
+
+One CNPG `Cluster` (`pg-camunda`, single instance) in its own `postgres` namespace, bootstrapped
+with the `camunda` database (unused on this Elasticsearch-backed track, but harmless — it's the
+same shared manifest as the RDBMS track) plus login roles/databases for Keycloak, Identity, and Web
+Modeler. The manifest creates the `postgres` namespace and the credential secrets it needs.
+
+```bash
+kubectl apply -f ./postgresql/postgresql-cluster.yaml
+kubectl wait --for=condition=Ready --timeout=600s cluster/pg-camunda -n postgres
+```
+
+## V3 Install Keycloak
+
+The Keycloak Custom Resource — single instance, no Ingress, backed by the `keycloak` database from
+V2. Admin credentials (`admin`/`admin`) are passed in via `bootstrapAdmin`.
+
+```bash
+kubectl apply -f ./keycloak/keycloak-instance.yaml
+kubectl wait --for=condition=Ready --timeout=600s keycloak/keycloak -n keycloak
+```
+
+**Accessing Keycloak locally.** The instance fixes its hostname to the cluster-DNS name so the
+token `iss` claim is identical for in-cluster pods and your browser. Add a loopback entry once, then
+port-forward when you need it:
+
+```bash
+echo "127.0.0.1 keycloak-service.keycloak.svc.cluster.local" | sudo tee -a /etc/hosts
+kubectl port-forward svc/keycloak-service 18080:18080 -n keycloak
+```
+
+Admin console: http://keycloak-service.keycloak.svc.cluster.local:18080/auth/
+
+## V4 Create Realm, Clients, and Users
+
+Scripted via `kcadm.sh` inside the Keycloak pod (`kubectl exec`, no port-forward needed). Creates
+the `camunda-platform` realm; the `operator`/`task-user` roles; the interactive `oc-client` (secret
+written to the K8s secret `camunda-keycloak-client-secrets` — unused on this track, since
+orchestration is reconfigured below to use `orchestration` instead, but harmless to leave in place);
+the service-account `benchmark-client` (used by the utility scripts, audience `orchestration` for
+this track — see below); and example users `operator`, `tasklist-user`, `admin` (all
+`username`=`password`). Idempotent — safe to re-run.
+
+`CREATE_VARIANT_CLIENTS=true` additionally prepares every OIDC client this track's Camunda
+components need — following Camunda's own
+["Option 1: prepare an existing realm"](https://docs.camunda.io/docs/self-managed/deployment/helm/configure/authentication-and-authorization/external-keycloak/#configure-components-using-oidc)
+pattern (see the Variant section's intro above for why): `camunda-identity` (Management Identity's
+own client — confidential, service account roles on, Authorization explicitly off, per
+[Camunda's own guidance for this client](https://docs.camunda.io/docs/next/self-managed/components/management-identity/configuration/connect-to-an-existing-keycloak/)),
+`orchestration` (this track's counterpart to `oc-client`), `optimize`, and `web-modeler` (public, no
+secret). It also writes the consolidated `camunda-credentials` Secret (Keycloak admin password,
+the `admin` first-user's password, Identity's/Optimize's client secrets) and an `admin`/`admin`
+first user for Management Identity's own login:
+
+```bash
+cd keycloak && CREATE_VARIANT_CLIENTS=true ORCHESTRATION_AUDIENCE=orchestration ./create-realm-and-clients.sh && cd ..
+```
+
+## V5 Install Elasticsearch
 
 Single-node ECK-managed Elasticsearch, in its own `elasticsearch` namespace (same "external
-dependency gets its own namespace" convention as `postgres`/`keycloak`/`minio`). Requires the ECK
-operator from [Prerequisites](#prerequisites).
+dependency gets its own namespace" convention as `postgres`/`keycloak`). Requires the ECK operator
+from [V1](#v1-create-a-local-cluster-and-install-operators).
 
 ```bash
 kubectl apply -f ./elasticsearch/elasticsearch-cluster.yaml
@@ -468,19 +600,17 @@ Camunda release can read it:
 ./elasticsearch/copy-elastic-secret.sh
 ```
 
-## V2 Add Identity + Web Modeler databases
+## V6 Add Identity + Web Modeler Databases
 
-Adds the `identity` and `webmodeler` login roles + databases to the **same** shared CNPG instance
-from step [03](#03-install-postgresql) (`pg-camunda`) — no new Postgres instance needed. Re-apply
-the (now extended) cluster manifest, then the two new `Database` CRs:
+Adds the `identity` and `webmodeler` databases to the **same** shared CNPG instance from
+[V2](#v2-install-postgresql) (`pg-camunda`) — no new Postgres instance needed; the login roles
+themselves were already created by V2's cluster manifest. Just the two new `Database` CRs:
 
 ```bash
-kubectl apply -f ./postgresql/postgresql-cluster.yaml
 kubectl apply -f ./postgresql/postgresql-databases-identity-webmodeler.yaml
-kubectl wait --for=condition=Ready --timeout=600s cluster/pg-camunda -n postgres
 ```
 
-## V3 Copy secrets
+## V7 Copy Secrets
 
 Same reasoning as `camunda-secrets.yaml` in the main guide — the Camunda release can only read
 `existingSecret`s from its own (`camunda`) namespace:
@@ -489,10 +619,10 @@ Same reasoning as `camunda-secrets.yaml` in the main guide — the Camunda relea
 kubectl apply -f ./camunda-secrets-identity-webmodeler.yaml
 ```
 
-## V4 Install Camunda
+## V8 Install Camunda
 
 Compose the Elasticsearch base with the two new layers (order matters — `with_identity_webmodeler.yaml`
-depends on the `global.identity.keycloak.*` block `with_optimize.yaml` establishes):
+depends on the `global.identity.auth.*` block `with_optimize.yaml` establishes):
 
 ```bash
 helm upgrade --install \
@@ -510,17 +640,59 @@ helm upgrade --install \
 kubectl get pods -n camunda -w
 ```
 
-> **If Identity/Optimize/Web Modeler don't reach `Ready`**, the most likely cause is that
-> self-provisioning the `camunda-identity`/`web-modeler`/`optimize` OIDC clients against the
-> external Keycloak (via `global.identity.keycloak.auth`'s admin credentials) didn't take effect —
-> this hasn't been exhaustively verified against this repo's Keycloak Operator + quay-optimized
-> image combination. Fall back to scripting the three clients into
-> `keycloak/create-realm-and-clients.sh` explicitly (mirroring how it already creates `oc-client`),
-> then point each `global.identity.auth.<component>.secret.existingSecret` at the resulting Secret.
+> **If Identity doesn't reach `Ready`**, check first whether [V4](#v4-create-realm-clients-and-users)
+> actually ran with `CREATE_VARIANT_CLIENTS=true` — every client Identity needs (`camunda-identity`,
+> `orchestration`, `optimize`, `web-modeler`), the `realm-management` service-account roles on
+> `camunda-identity` (`manage-clients`/`manage-realm`/`manage-users` — needed even under GENERIC
+> auth, for Identity's own runtime user/role management calls), and the `camunda-credentials` Secret
+> must already exist in Keycloak *before* this step.
+>
+> Also confirm `with_optimize.yaml`'s `global.identity.auth.type` is `"GENERIC"`, not `"KEYCLOAK"`.
+> KEYCLOAK type activates Identity's own `keycloak` Spring profile, which runs
+> `KeycloakPresetInitializer` — it unconditionally tries to *create* every resource-server client via
+> Keycloak's admin API on every startup, so it 409-crashes (`Client ... already exists`) the moment
+> those clients already exist, which V4 guarantees from the very first apply. Pre-creating the
+> clients (V4) alone does **not** avoid this — only `type: "GENERIC"` does, by skipping that
+> initializer entirely and talking to Keycloak as a plain OIDC provider via the explicit
+> `publicIssuerUrl`/`issuerBackendUrl`/`authUrl`/`tokenUrl`/`jwksUrl` in `with_optimize.yaml`. This
+> was discovered the hard way while building this guide: pre-creating clients alone still 409-crashed
+> Identity until `auth.type` was switched to `GENERIC`. If you still see the 409 (or a
+> `NotFoundException ... not managed by Identity because it has authorization services enabled`),
+> recovery: delete the conflicting client(s) from the realm (`kcadm.sh delete clients/<id> -r
+> camunda-platform`) and delete the Identity pod to retry from a clean slate.
 
-## V5 Accessing the new UIs
+## V9 Create Some Data
+
+Deploy a test BPMN process and create process instances, so Optimize has data to import. Needs the
+Keycloak port-forward from [V3](#v3-install-keycloak) running (for OAuth) and a Zeebe Gateway
+port-forward:
 
 ```bash
+kubectl port-forward -n camunda svc/camunda-zeebe-gateway 8080:8080 &
+
+c8ctl add profile enablement --baseUrl=http://localhost:8080/v2 \
+  --clientId=benchmark-client --clientSecret=benchmark-client \
+  --oAuthUrl=http://localhost:18080/auth/realms/camunda-platform/protocol/openid-connect/token \
+  --audience=orchestration
+
+../utils/deploy-bpmn.sh --profile=enablement
+../utils/create-process-instances.sh --profile=enablement
+```
+
+`--audience=orchestration` (not `oc-client`) — this track's orchestration cluster validates tokens
+against the `orchestration` client V4 prepared, per `with_identity_webmodeler.yaml`'s override of
+`with_permissions.yaml`. `c8ctl add profile` registers the `benchmark-client` service-account
+credentials once, resolving OAuth against the in-cluster Keycloak on every subsequent call. Allow a
+minute or two for Optimize's own import cycle to pick up the new instances — it doesn't appear
+immediately, unlike Operate/Tasklist.
+
+## V10 Accessing the New UIs
+
+```bash
+# Operate
+kubectl port-forward -n camunda svc/camunda-operate 8081:80
+# open http://localhost:8081
+
 # Optimize
 kubectl port-forward -n camunda svc/camunda-optimize 8083:80
 # open http://localhost:8083/optimize
@@ -534,10 +706,13 @@ kubectl port-forward -n camunda svc/camunda-identity 8084:80
 # open http://localhost:8084/identity
 ```
 
-Log in with any of the users [05](#05-create-realm-clients-and-users) created in the Keycloak
-realm. Deploying the sample process via `../utils/deploy-bpmn.sh` (step
-[07](#07-create-some-data), using the same Keycloak-backed `benchmark-client` profile) gives
-Optimize data to import — allow a minute or two for Optimize's own import cycle to pick it up.
+Log in to Management Identity, Optimize, and Web Modeler with `admin`/`admin` — the same Keycloak
+user V4 creates for every other login in this guide. Management Identity recognizes it as an admin
+via `global.identity.auth.identity.initialClaimName`/`initialClaimValue` (`with_optimize.yaml`)
+matching that user's `preferred_username` claim, not the chart's `identity.firstUser` mechanism
+(that requires KEYCLOAK-type admin-API access, which this guide's `type: "GENERIC"` deliberately
+does not use — see V8's note). Operate/Tasklist (via Orchestration's own login) use
+the separate `operator`/`tasklist-user`/`admin` realm users V4 always creates.
 
 **Variant-specific caveats**, in addition to the [Notes / caveats](#notes--caveats) below:
 - **Single-node Elasticsearch, no HA** — same posture as the rest of this guide; not appropriate
@@ -554,6 +729,15 @@ Optimize data to import — allow a minute or two for Optimize's own import cycl
   `webModeler.restapi.pusher.secret.existingSecret` / `.pusher.client.secret.existingSecret` to a
   stable Secret if that matters for your use of this guide; left as chart defaults here since it's
   cosmetic for a local/dev cluster.
+- **Don't let Management Identity self-provision its OIDC clients on this track.** V4's
+  `CREATE_VARIANT_CLIENTS=true` prepares every client up front instead, and `with_optimize.yaml`
+  sets `global.identity.auth.type: "GENERIC"` — both matter. Self-provisioning
+  (`KeycloakPresetInitializer`) is gated behind `type: "KEYCLOAK"`'s `keycloak` Spring profile: it
+  always attempts to *create* its resource-server clients, never checks if they already exist, so it
+  409-crashes on every restart after its first success even with V4's clients already prepared.
+  `type: "GENERIC"` is what actually disables that initializer; V4's client prep alone does not.
+  If you switch back to `type: "KEYCLOAK"` and let Identity self-provision, expect the same
+  fragility; see the note under [V8](#v8-install-camunda) for the recovery procedure if it happens.
 
 
 # Notes / caveats

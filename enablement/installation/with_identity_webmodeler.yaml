@@ -13,6 +13,21 @@
 # "External Keycloak" mode (Keycloak can store Identity's data itself unless multitenancy is on) -
 # it's configured explicitly here to demonstrate the CNPG pattern end-to-end for these two
 # components, per this guide's request.
+#
+# Also overrides orchestration's OWN OIDC client/audience (orchestration.security.authentication.oidc
+# in ../with_permissions.yaml, layered before this file) from "oc-client" to "orchestration" - the
+# client keycloak/create-realm-and-clients.sh's CREATE_VARIANT_CLIENTS=true prepares specifically
+# for this track (matches the chart's own default clientId/audience for this setting, spelled out
+# explicitly here for clarity). "oc-client" stays the RDBMS track's own client, untouched.
+#
+# identity.env below (KEYCLOAK_REALM / IDENTITY_CLIENTID) is Camunda's own documented external-
+# Keycloak pattern for telling Management Identity which pre-existing realm/client to use -
+# "Option 1: prepare an existing realm":
+# https://docs.camunda.io/docs/self-managed/deployment/helm/configure/authentication-and-authorization/external-keycloak/#configure-the-helm-chart
+# identity.firstUser overrides the chart's default first-user username ("demo") to "admin", so the
+# login matches every other credential in this guide (defaultRoles.admin.users in
+# ../with_permissions.yaml, the "admin" realm user keycloak/create-realm-and-clients.sh already
+# creates for the RDBMS track).
 
 global:
   identity:
@@ -22,9 +37,22 @@ global:
         # the UIs" step in the Variant section).
         redirectUrl: "http://localhost:8070"
 
+orchestration:
+  security:
+    authentication:
+      oidc:
+        clientId: orchestration
+        audience: orchestration
+
 identity:
   enabled: true
   contextPath: "/identity"
+  # For a port-forward to Identity on 8084 (see the README's "Accessing the UIs" step) - matches
+  # create-realm-and-clients.sh's IDENTITY_REDIRECT_URI. No firstUser/env block: those are the
+  # KEYCLOAK-type admin-API mechanism (../with_optimize.yaml's auth.type comment) - under
+  # GENERIC, the pre-created "admin" Keycloak user becomes Identity's admin via
+  # global.identity.auth.identity.initialClaimName/initialClaimValue instead.
+  fullURL: "http://localhost:8084"
   externalDatabase:
     enabled: true
     # pg-camunda-rw is the CloudNativePG-managed read-write Service from
