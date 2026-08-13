@@ -192,7 +192,7 @@ Admin console: http://keycloak-service.keycloak.svc.cluster.local:18080/auth/
 
 ## 05 Create Realm, Clients, and Users
 
-Scripted via `kcadm.sh` inside the Keycloak pod (`kubectl exec`, no port-forward needed). Creates the `camunda-platform` realm; the `operator`/`task-user` roles; the interactive `oc-client` (secret written to the K8s secret `camunda-keycloak-client-secrets`); the service-account `benchmark-client` (used by the utility scripts); and example users `operator`, `tasklist-user`, `admin` (all `username`=`password`). Idempotent — safe to re-run.
+Scripted via `kcadm.sh` inside the Keycloak pod (`kubectl exec`, no port-forward needed). Creates the `camunda-platform` realm; the `operator`/`task-user` roles; the interactive `orchestration` client (secret written to the K8s secret `camunda-keycloak-client-secrets`); the service-account `benchmark-client` (used by the utility scripts); `camunda-identity`, `optimize`, and `web-modeler` (unused on this track, but harmless to leave in place — see the Variant section below); and example users `operator`, `tasklist-user`, `admin` (all `username`=`password`). Idempotent — safe to re-run.
 
 ```bash
 cd keycloak && ./create-realm-and-clients.sh && cd ..
@@ -241,7 +241,7 @@ kubectl port-forward -n camunda svc/camunda-zeebe-gateway 8080:8080 &
 c8ctl add profile enablement --baseUrl=http://localhost:8080/v2 \
   --clientId=benchmark-client --clientSecret=benchmark-client \
   --oAuthUrl=http://localhost:18080/auth/realms/camunda-platform/protocol/openid-connect/token \
-  --audience=oc-client
+  --audience=orchestration
 
 ../utils/deploy-bpmn.sh --profile=enablement
 ../utils/create-process-instances.sh --profile=enablement
@@ -453,8 +453,8 @@ Unlike orchestration's own OIDC client (`with_permissions.yaml`'s
 Keycloak" connection block (`global.identity.keycloak.*`, set in `with_optimize.yaml`) plus
 per-component client config under `global.identity.auth.*`.
 
-**Every OIDC client this track needs is created explicitly, up front**, by
-`keycloak/create-realm-and-clients.sh` (V4, `CREATE_VARIANT_CLIENTS=true`) — following Camunda's own
+**Every OIDC client any track needs is always created, up front**, by
+`keycloak/create-realm-and-clients.sh` (V4) — following Camunda's own
 documented ["Option 1: prepare an existing realm"](https://docs.camunda.io/docs/self-managed/deployment/helm/configure/authentication-and-authorization/external-keycloak/#configure-components-using-oidc)
 pattern for external Keycloak, rather than relying on Management Identity's own startup-time
 self-provisioning for anything beyond its own client lookup. That self-provisioning path (Camunda's
@@ -559,26 +559,23 @@ Admin console: http://keycloak-service.keycloak.svc.cluster.local:18080/auth/
 ## V4 Create Realm, Clients, and Users
 
 Scripted via `kcadm.sh` inside the Keycloak pod (`kubectl exec`, no port-forward needed). Creates
-the `camunda-platform` realm; the `operator`/`task-user` roles; the interactive `oc-client` (secret
-written to the K8s secret `camunda-keycloak-client-secrets` — unused on this track, since
-orchestration is reconfigured below to use `orchestration` instead, but harmless to leave in place);
-the service-account `benchmark-client` (used by the utility scripts, audience `orchestration` for
-this track — see below); and example users `operator`, `tasklist-user`, `admin` (all
-`username`=`password`). Idempotent — safe to re-run.
-
-`CREATE_VARIANT_CLIENTS=true` additionally prepares every OIDC client this track's Camunda
-components need — following Camunda's own
-["Option 1: prepare an existing realm"](https://docs.camunda.io/docs/self-managed/deployment/helm/configure/authentication-and-authorization/external-keycloak/#configure-components-using-oidc)
-pattern (see the Variant section's intro above for why): `camunda-identity` (Management Identity's
-own client — confidential, service account roles on, Authorization explicitly off, per
+the `camunda-platform` realm; the `operator`/`task-user` roles; the interactive `orchestration`
+client (secret written to the K8s secret `camunda-keycloak-client-secrets`); the service-account
+`benchmark-client` (used by the utility scripts, audience `orchestration`); `camunda-identity`
+(Management Identity's own client — confidential, service account roles on, Authorization
+explicitly off, per
 [Camunda's own guidance for this client](https://docs.camunda.io/docs/next/self-managed/components/management-identity/configuration/connect-to-an-existing-keycloak/)),
-`orchestration` (this track's counterpart to `oc-client`), `optimize`, and `web-modeler` (public, no
-secret). It also writes the consolidated `camunda-credentials` Secret (Keycloak admin password,
-the `admin` first-user's password, Identity's/Optimize's client secrets) and an `admin`/`admin`
-first user for Management Identity's own login:
+`optimize`, and `web-modeler` (public, no secret) — following Camunda's own
+["Option 1: prepare an existing realm"](https://docs.camunda.io/docs/self-managed/deployment/helm/configure/authentication-and-authorization/external-keycloak/#configure-components-using-oidc)
+pattern (see the Variant section's intro above for why); the consolidated `camunda-credentials`
+Secret (Keycloak admin password, the `admin` first-user's password, Identity's/Optimize's client
+secrets); an `admin`/`admin` first user for Management Identity's own login; and example users
+`operator`, `tasklist-user`, `admin` (all `username`=`password`). Idempotent — safe to re-run. This
+is the exact same script and command as [step 05](#05-create-realm-clients-and-users) in the main
+guide — every client is always created, on both tracks:
 
 ```bash
-cd keycloak && CREATE_VARIANT_CLIENTS=true ORCHESTRATION_AUDIENCE=orchestration ./create-realm-and-clients.sh && cd ..
+cd keycloak && ./create-realm-and-clients.sh && cd ..
 ```
 
 ## V5 Install Elasticsearch
@@ -641,7 +638,7 @@ kubectl get pods -n camunda -w
 ```
 
 > **If Identity doesn't reach `Ready`**, check first whether [V4](#v4-create-realm-clients-and-users)
-> actually ran with `CREATE_VARIANT_CLIENTS=true` — every client Identity needs (`camunda-identity`,
+> actually ran — every client Identity needs (`camunda-identity`,
 > `orchestration`, `optimize`, `web-modeler`), the `realm-management` service-account roles on
 > `camunda-identity` (`manage-clients`/`manage-realm`/`manage-users` — needed even under GENERIC
 > auth, for Identity's own runtime user/role management calls), and the `camunda-credentials` Secret
@@ -679,9 +676,9 @@ c8ctl add profile enablement --baseUrl=http://localhost:8080/v2 \
 ../utils/create-process-instances.sh --profile=enablement
 ```
 
-`--audience=orchestration` (not `oc-client`) — this track's orchestration cluster validates tokens
-against the `orchestration` client V4 prepared, per `with_identity_webmodeler.yaml`'s override of
-`with_permissions.yaml`. `c8ctl add profile` registers the `benchmark-client` service-account
+`--audience=orchestration` — the orchestration cluster validates tokens against the `orchestration`
+client V4 prepared, per `with_permissions.yaml`'s `orchestration.security.authentication.oidc`.
+`c8ctl add profile` registers the `benchmark-client` service-account
 credentials once, resolving OAuth against the in-cluster Keycloak on every subsequent call. Allow a
 minute or two for Optimize's own import cycle to pick up the new instances — it doesn't appear
 immediately, unlike Operate/Tasklist.
@@ -729,8 +726,8 @@ the separate `operator`/`tasklist-user`/`admin` realm users V4 always creates.
   `webModeler.restapi.pusher.secret.existingSecret` / `.pusher.client.secret.existingSecret` to a
   stable Secret if that matters for your use of this guide; left as chart defaults here since it's
   cosmetic for a local/dev cluster.
-- **Don't let Management Identity self-provision its OIDC clients on this track.** V4's
-  `CREATE_VARIANT_CLIENTS=true` prepares every client up front instead, and `with_optimize.yaml`
+- **Don't let Management Identity self-provision its OIDC clients on this track.** V4
+  prepares every client up front instead, and `with_optimize.yaml`
   sets `global.identity.auth.type: "GENERIC"` — both matter. Self-provisioning
   (`KeycloakPresetInitializer`) is gated behind `type: "KEYCLOAK"`'s `keycloak` Spring profile: it
   always attempts to *create* its resource-server clients, never checks if they already exist, so it

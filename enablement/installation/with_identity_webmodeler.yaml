@@ -14,11 +14,9 @@
 # it's configured explicitly here to demonstrate the CNPG pattern end-to-end for these two
 # components, per this guide's request.
 #
-# Also overrides orchestration's OWN OIDC client/audience (orchestration.security.authentication.oidc
-# in ../with_permissions.yaml, layered before this file) from "oc-client" to "orchestration" - the
-# client keycloak/create-realm-and-clients.sh's CREATE_VARIANT_CLIENTS=true prepares specifically
-# for this track (matches the chart's own default clientId/audience for this setting, spelled out
-# explicitly here for clarity). "oc-client" stays the RDBMS track's own client, untouched.
+# orchestration's OWN OIDC client/audience (orchestration.security.authentication.oidc, set in
+# ../with_permissions.yaml, layered before this file) is already "orchestration" - the same client
+# keycloak/create-realm-and-clients.sh always prepares - so no override is needed here.
 #
 # identity.env below (KEYCLOAK_REALM / IDENTITY_CLIENTID) is Camunda's own documented external-
 # Keycloak pattern for telling Management Identity which pre-existing realm/client to use -
@@ -27,32 +25,26 @@
 # identity.firstUser overrides the chart's default first-user username ("demo") to "admin", so the
 # login matches every other credential in this guide (defaultRoles.admin.users in
 # ../with_permissions.yaml, the "admin" realm user keycloak/create-realm-and-clients.sh already
-# creates for the RDBMS track).
+# creates).
 
 global:
   identity:
     auth:
       webModeler:
         # Works if a port-forward to Web Modeler is created to 8070 (see the README's "Accessing
-        # the UIs" step in the Variant section).
-        redirectUrl: "http://localhost:8070"
-
-orchestration:
-  security:
-    authentication:
-      oidc:
-        clientId: orchestration
-        audience: orchestration
+        # the UIs" step in the Variant section). Includes webModeler.contextPath below, matching
+        # create-realm-and-clients.sh's WEBMODELER_URL.
+        redirectUrl: "http://localhost:8070/modeler"
 
 identity:
   enabled: true
   contextPath: "/identity"
-  # For a port-forward to Identity on 8084 (see the README's "Accessing the UIs" step) - matches
-  # create-realm-and-clients.sh's IDENTITY_REDIRECT_URI. No firstUser/env block: those are the
-  # KEYCLOAK-type admin-API mechanism (../with_optimize.yaml's auth.type comment) - under
-  # GENERIC, the pre-created "admin" Keycloak user becomes Identity's admin via
+  # For a port-forward to Identity on 8084 (see the README's "Accessing the UIs" step) - includes
+  # the contextPath above, matching create-realm-and-clients.sh's IDENTITY_URL. No firstUser/env
+  # block: those are the KEYCLOAK-type admin-API mechanism (../with_optimize.yaml's auth.type
+  # comment) - under GENERIC, the pre-created "admin" Keycloak user becomes Identity's admin via
   # global.identity.auth.identity.initialClaimName/initialClaimValue instead.
-  fullURL: "http://localhost:8084"
+  fullURL: "http://localhost:8084/identity"
   externalDatabase:
     enabled: true
     # pg-camunda-rw is the CloudNativePG-managed read-write Service from

@@ -7,14 +7,13 @@
 # deployment and its OIDC wiring.
 #
 # global.identity.auth.* below is the foundation with_identity_webmodeler.yaml builds on: unlike
-# orchestration's own OIDC client (with_permissions.yaml's orchestration.security.authentication.oidc,
-# overridden for this track in with_identity_webmodeler.yaml), Optimize/Identity/Web Modeler share
-# ONE OIDC provider connection block (global.identity.auth's top-level publicIssuerUrl/
-# issuerBackendUrl/authUrl/tokenUrl/jwksUrl) plus per-component client config under
-# global.identity.auth.*.
+# orchestration's own OIDC client (with_permissions.yaml's orchestration.security.authentication.oidc),
+# Optimize/Identity/Web Modeler share ONE OIDC provider connection block (global.identity.auth's
+# top-level publicIssuerUrl/issuerBackendUrl/authUrl/tokenUrl/jwksUrl) plus per-component client
+# config under global.identity.auth.*.
 #
-# Every OIDC client is created explicitly, up front, by keycloak/create-realm-and-clients.sh
-# (CREATE_VARIANT_CLIENTS=true), rather than relying on Management Identity's own startup-time
+# Every OIDC client is created explicitly, up front, by keycloak/create-realm-and-clients.sh,
+# rather than relying on Management Identity's own startup-time
 # self-provisioning (that self-provisioning path is tied to global.identity.auth.type: "KEYCLOAK"
 # and was found non-idempotent in this repo's testing - see this file's auth.type comment below
 # and create-realm-and-clients.sh's header comment). type: "GENERIC" (below) is what actually
@@ -64,8 +63,9 @@ global:
         initialClaimValue: admin
       optimize:
         # Works if a port-forward to Optimize is created to 8083 (see the README's "Accessing the
-        # UIs" step in the Variant section).
-        redirectUrl: "http://localhost:8083"
+        # UIs" step in the Variant section). Includes optimize.contextPath below, matching
+        # keycloak/create-realm-and-clients.sh's OPTIMIZE_URL.
+        redirectUrl: "http://localhost:8083/optimize"
         secret:
           existingSecret: "camunda-credentials"
           existingSecretKey: "identity-optimize-client-token"

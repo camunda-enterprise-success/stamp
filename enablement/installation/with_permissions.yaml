@@ -100,12 +100,12 @@ orchestration:
     authentication:
       oidc:
         ## @param orchestration.security.authentication.oidc.clientId defines the client id, which is used by Orchestration Cluster in authentication flows.
-        clientId: oc-client
+        clientId: orchestration
         ## @param orchestration.security.authentication.oidc.audience defines the audience, which is used by Orchestration Cluster.
-        audience: oc-client
+        audience: orchestration
         secret:
           existingSecret: "camunda-keycloak-client-secrets"
-          existingSecretKey: "oc-secret"
+          existingSecretKey: "orchestration-secret"
         # All five URLs are the SAME in-cluster Keycloak realm URL (keycloak/keycloak-instance.yaml +
         # keycloak/create-realm-and-clients.sh). The fixed cluster-DNS hostname means the `iss` claim is
         # identical whether the token is validated by an in-cluster pod (via CoreDNS) or your
@@ -117,7 +117,11 @@ orchestration:
         jwksUrl: http://keycloak-service.keycloak.svc.cluster.local:18080/auth/realms/camunda-platform/protocol/openid-connect/certs
         publicIssuerUrl: http://keycloak-service.keycloak.svc.cluster.local:18080/auth/realms/camunda-platform
         type: "GENERIC"
-        redirectUrl: "http://localhost:8080/"
+        # No trailing slash - orchestration's own contextPath is "/" (root), and it builds its
+        # callback URL as redirectUrl + "/sso-callback"; a trailing slash here would produce a
+        # "//sso-callback" double-slash mismatch against the redirect URI keycloak/create-realm-and-clients.sh
+        # registers in Keycloak.
+        redirectUrl: "http://localhost:8080"
         # Configure the claim in the access token to identify a client, default: client_id
         clientIdClaim: client_id
         # Configure the claim in the access token to identify a user by, default: preferred_username
