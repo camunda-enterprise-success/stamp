@@ -20,11 +20,38 @@
 # to consume via existingSecret.
 #
 # ECK also creates the read Service this points at: elasticsearch-es-http.elasticsearch.svc.cluster.local:9200
+#
+# --- S3 snapshot backup wiring (for the ../backup_elasticsearch/ backup/restore option) ---
+# Elasticsearch is this variant's secondary storage, so its snapshots ARE the secondary-storage half
+# of a backup (they also cover Optimize). Taking snapshots into the local MinIO object store
+# (../backup/minio.yaml, bucket "camunda-backups") requires the S3 client credentials to live in
+# Elasticsearch's own keystore under the fixed keys s3.client.default.access_key/secret_key. On ECK
+# that is done via `spec.secureSettings` pointing at a Secret whose keys become keystore entries -
+# ECK loads them into the keystore and reloads automatically. This mirrors how
+# ../postgresql/postgresql-cluster.yaml carries its own Barman backup wiring inline: the
+# secondary-storage manifest owns its backup credentials. The MinIO S3 endpoint / path-style access
+# themselves are not set here - they're passed as repository settings when the repos are registered
+# (../backup_elasticsearch/register-snapshot-job.yaml). Inlined dev values (minioadmin) - swap for
+# generated values outside a local/dev cluster, same as everything else in this guide.
 
 apiVersion: v1
 kind: Namespace
 metadata:
   name: elasticsearch
+---
+# S3 client credentials for Elasticsearch snapshot repositories (MinIO). The key NAMES are
+# significant: ECK maps each Secret key to an Elasticsearch keystore entry of the same name, and the
+# S3 repository plugin reads exactly s3.client.default.access_key / s3.client.default.secret_key for
+# its "default" client. Values match ../backup/minio.yaml's minio-credentials (minioadmin/minioadmin).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: elasticsearch-s3-backup-credentials
+  namespace: elasticsearch
+type: Opaque
+stringData:
+  s3.client.default.access_key: minioadmin
+  s3.client.default.secret_key: minioadmin
 ---
 apiVersion: elasticsearch.k8s.elastic.co/v1
 kind: Elasticsearch
@@ -34,6 +61,10 @@ metadata:
 spec:
   # renovate: datasource=docker depName=docker.elastic.co/elasticsearch/elasticsearch versioning=semver
   version: 8.19.19
+  # Load the S3 snapshot credentials above into the Elasticsearch keystore (see header). Without
+  # this, registering an s3-type snapshot repository fails with "Access key ... not found".
+  secureSettings:
+    - secretName: elasticsearch-s3-backup-credentials
   http:
     tls:
       selfSignedCertificate:

@@ -1,0 +1,80 @@
+# Registers the two Elasticsearch S3 snapshot repositories this variant's backup/restore uses, both
+# pointing at the local MinIO object store (../backup/minio.yaml, bucket "camunda-backups"):
+#
+#   camunda-backups-webapps   base_path web-apps-indices   <- Operate/Tasklist history (backupHistory)
+#   camunda-backups-optimize  base_path optimize-indices   <- Optimize snapshots (Optimize backup API)
+#
+# The Zeebe runtime (primary storage) backup does NOT use an ES repository - Camunda writes it
+# straight to s3://camunda-backups/oc-runtime itself (see ../values_with_backup_restore_elasticsearch.yml).
+#
+# A snapshot repository registration lives in Elasticsearch cluster metadata, which is wiped when the
+# indices/namespace are reset - so this Job must be re-applied after a restore (before
+# ./restore/es-snapshot-restore-job.yaml), exactly like the install-time registration.
+#
+# Runs in the "camunda" namespace and reaches Elasticsearch cross-namespace by FQDN. ECK keeps the
+# "elastic" superuser even with TLS disabled, so every call authenticates with -u; the password comes
+# from the elasticsearch-es-elastic-user Secret copied into "camunda" by
+# ../elasticsearch/copy-elastic-secret.sh. The S3 credentials themselves are already in the
+# Elasticsearch keystore (../elasticsearch/elasticsearch-cluster.yaml secureSettings); here we only
+# pass the MinIO endpoint + path-style access as repository settings.
+#
+#   kubectl apply -f ./backup_elasticsearch/register-snapshot-job.yaml   (from installation/)
+#   kubectl wait --for=condition=complete --timeout=120s job/register-snapshot-job -n camunda
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: register-snapshot-job
+  namespace: camunda
+  labels:
+    type: camunda-backup-restore
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: es-snapshot
+          image: curlimages/curl:latest
+          env:
+            - name: ELASTIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: elasticsearch-es-elastic-user
+                  key: elastic
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              ES="http://elasticsearch-es-http.elasticsearch.svc.cluster.local:9200"
+
+              register_repo() {
+                REPO=$1
+                BASE_PATH=$2
+                echo "Registering repository '$REPO' (base_path: $BASE_PATH) ..."
+                curl --fail -sS -u "elastic:$ELASTIC_PASSWORD" \
+                  -X PUT "$ES/_snapshot/$REPO" \
+                  -H 'Content-Type: application/json' \
+                  -d "{\"type\":\"s3\",\"settings\":{\"bucket\":\"camunda-backups\",\"base_path\":\"$BASE_PATH\",\"endpoint\":\"minio.minio.svc.cluster.local:9000\",\"protocol\":\"http\",\"path_style_access\":true,\"client\":\"default\",\"compress\":true}}"
+                echo ""
+                echo "  -> '$REPO' registered."
+              }
+
+              echo "========================================="
+              echo "Registering Elasticsearch snapshot repositories (-> MinIO)"
+              echo "========================================="
+              register_repo "camunda-backups-webapps"  "web-apps-indices"
+              register_repo "camunda-backups-optimize" "optimize-indices"
+
+              echo ""
+              echo "Verifying repositories are reachable (write access check):"
+              curl -sS -u "elastic:$ELASTIC_PASSWORD" -X POST "$ES/_snapshot/camunda-backups-webapps/_verify"
+              echo ""
+              curl -sS -u "elastic:$ELASTIC_PASSWORD" -X POST "$ES/_snapshot/camunda-backups-optimize/_verify"
+              echo ""
+              echo "========================================="
+              echo "Done. S3 layout under bucket camunda-backups:"
+              echo "  s3://camunda-backups/web-apps-indices/  (Operate/Tasklist history snapshots)"
+              echo "  s3://camunda-backups/optimize-indices/  (Optimize snapshots)"
+              echo "  s3://camunda-backups/oc-runtime/         (Zeebe runtime backups - Camunda-managed)"
+              echo "========================================="

@@ -1,0 +1,76 @@
+# DESTRUCTIVE - deletes all Camunda Elasticsearch indices so a snapshot restore can recreate them.
+# Run ./delete-camunda-indices-dryrun-job.yaml first to preview, and only run this as part of the
+# restore procedure (README "Restore (Elasticsearch variant)"), with Zeebe scaled to 0.
+#
+# Covers all four index families on this variant, INCLUDING optimize-*:
+#   camunda-*  operate-*  tasklist-*  optimize-*
+# (A snapshot cannot be restored on top of an existing open index - these must be gone first.)
+#
+# Runs in "camunda" and authenticates as the "elastic" superuser (password from the
+# elasticsearch-es-elastic-user Secret copied in by ../elasticsearch/copy-elastic-secret.sh).
+#
+#   kubectl apply -f ./backup_elasticsearch/delete-camunda-indices-job.yaml   (from installation/)
+#   kubectl wait --for=condition=complete --timeout=300s job/delete-camunda-indices -n camunda
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: delete-camunda-indices
+  namespace: camunda
+  labels:
+    type: camunda-maintenance
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: delete-indices
+          image: curlimages/curl:latest
+          env:
+            - name: ELASTIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: elasticsearch-es-elastic-user
+                  key: elastic
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              ES="http://elasticsearch-es-http.elasticsearch.svc.cluster.local:9200"
+
+              echo "========================================="
+              echo "Deleting Camunda indices (camunda-*, operate-*, tasklist-*, optimize-*)"
+              echo "========================================="
+
+              delete_family() {
+                PREFIX=$1
+                echo ""
+                echo "Deleting ${PREFIX}* indices ..."
+                LIST=$(curl -s -u "elastic:$ELASTIC_PASSWORD" "$ES/_cat/indices/${PREFIX}*?h=index")
+                if [ -z "$LIST" ]; then
+                  echo "  (none)"
+                  return 0
+                fi
+                for INDEX in $LIST; do
+                  echo "  deleting $INDEX ..."
+                  curl -s -u "elastic:$ELASTIC_PASSWORD" -X DELETE "$ES/$INDEX" >/dev/null
+                done
+                echo "  -> ${PREFIX}* deleted"
+              }
+
+              delete_family "camunda-"
+              delete_family "operate-"
+              delete_family "tasklist-"
+              delete_family "optimize-"
+
+              echo ""
+              echo "Verifying ..."
+              REMAINING=$(curl -s -u "elastic:$ELASTIC_PASSWORD" "$ES/_cat/indices/camunda-*,operate-*,tasklist-*,optimize-*?h=index" | grep -c . || true)
+              if [ "$REMAINING" -eq 0 ]; then
+                echo "SUCCESS: all Camunda indices deleted."
+              else
+                echo "WARNING: $REMAINING index(es) still present:"
+                curl -s -u "elastic:$ELASTIC_PASSWORD" "$ES/_cat/indices/camunda-*,operate-*,tasklist-*,optimize-*?v"
+                exit 1
+              fi

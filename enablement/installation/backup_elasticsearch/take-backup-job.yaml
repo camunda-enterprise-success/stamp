@@ -1,0 +1,134 @@
+# Coordinated, on-demand backup of the whole Elasticsearch-backed stack under ONE shared backup ID.
+# This is the Elasticsearch/OpenSearch backup model (single backupId across every component, taken
+# under an exporter pause), which is fundamentally different from the RDBMS track's model in
+# ../backup/manual-backup.sh (two independent halves, staggered schedules, no pause). See the
+# README's "Backup (Elasticsearch variant)" section.
+#
+# BACKUP_ID comes from the camunda-backup-config ConfigMap (envFrom below), created before this Job:
+#   kubectl create configmap camunda-backup-config -n camunda --from-literal=BACKUP_ID=$(date +%s)
+# The same ConfigMap is consumed by the restore jobs, so all four snapshot streams stay tied together.
+#
+# Order (all under one exporter pause, per the docs):
+#   1. pause exporting (soft=true)   - stop new records reaching the ES indices mid-snapshot
+#   2. backupHistory  -> Operate/Tasklist history snapshot   (repo camunda-backups-webapps)
+#   3. Optimize backup -> Optimize snapshot                  (repo camunda-backups-optimize)
+#   4. backupRuntime  -> Zeebe runtime backup                (s3://camunda-backups/oc-runtime)
+#   5. resume exporting
+# The Zeebe gateway management API (:9600) and Optimize management API (:8092) are internal and
+# unauthenticated, so no credentials are needed here (unlike the ES-direct jobs).
+#
+#   kubectl apply -f ./backup_elasticsearch/take-backup-job.yaml   (from installation/)
+#   kubectl wait --for=condition=complete --timeout=1800s job/camunda-backup-combined -n camunda
+#   kubectl logs -f job/camunda-backup-combined -n camunda
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: camunda-backup-combined
+  namespace: camunda
+  labels:
+    type: camunda-backup-restore
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: take-combined-backup
+          image: curlimages/curl:latest
+          envFrom:
+            - configMapRef:
+                name: camunda-backup-config
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              GATEWAY="http://camunda-zeebe-gateway:9600"
+              OPTIMIZE="http://camunda-optimize:8092"
+
+              echo "==========================================="
+              echo "Coordinated backup, backupId=$BACKUP_ID"
+              echo "==========================================="
+
+              # Wait for a Zeebe gateway actuator backup (backupHistory / backupRuntime) to reach a
+              # terminal state for our backupId. The response is a JSON array of per-partition entries;
+              # we read the top-level "state" that immediately follows our backupId.
+              wait_gateway_backup() {
+                ENDPOINT=$1
+                LABEL=$2
+                echo "[$LABEL] waiting for backupId=$BACKUP_ID ..."
+                for i in $(seq 1 120); do
+                  RESP=$(curl -s "$GATEWAY/actuator/$ENDPOINT")
+                  if echo "$RESP" | grep -q "\"backupId\":$BACKUP_ID"; then
+                    STATUS=$(echo "$RESP" | grep -o "\"backupId\":$BACKUP_ID[^}]*\"state\":\"[^\"]*\"" | grep -o '"state":"[^"]*"' | head -1 | cut -d'"' -f4)
+                    echo "[$LABEL] state: $STATUS"
+                    case "$STATUS" in
+                      COMPLETED) echo "[$LABEL] done."; return 0 ;;
+                      FAILED|INCOMPLETE) echo "[$LABEL] FAILED ($STATUS): $RESP"; return 1 ;;
+                    esac
+                  else
+                    echo "[$LABEL] in progress ..."
+                  fi
+                  sleep 10
+                done
+                echo "[$LABEL] timed out after 20 min"; return 1
+              }
+
+              # Wait for an Optimize backup (management port :8092) to reach a terminal state. The
+              # GET /actuator/backups/{id} response carries a single "state" field.
+              wait_optimize_backup() {
+                echo "[OPTIMIZE] waiting for backupId=$BACKUP_ID ..."
+                for i in $(seq 1 120); do
+                  RESP=$(curl -s "$OPTIMIZE/actuator/backups/$BACKUP_ID")
+                  STATUS=$(echo "$RESP" | grep -o '"state":"[^"]*"' | head -1 | cut -d'"' -f4)
+                  echo "[OPTIMIZE] state: ${STATUS:-<pending>}"
+                  case "$STATUS" in
+                    COMPLETE) echo "[OPTIMIZE] done."; return 0 ;;
+                    FAILED|INCOMPLETE|INCOMPATIBLE) echo "[OPTIMIZE] FAILED ($STATUS): $RESP"; return 1 ;;
+                  esac
+                  sleep 10
+                done
+                echo "[OPTIMIZE] timed out after 20 min"; return 1
+              }
+
+              # 1. Pause exporting (soft) so the ES indices are consistent during the snapshots.
+              echo ""
+              echo "Pausing exporting (soft=true) ..."
+              curl -s -X POST "$GATEWAY/actuator/exporting/pause?soft=true"; echo ""
+
+              # Always try to resume exporting, even if a later step fails.
+              resume() {
+                echo ""
+                echo "Resuming exporting ..."
+                curl -s -X POST "$GATEWAY/actuator/exporting/resume"; echo ""
+              }
+              trap resume EXIT
+
+              # 2. History (Operate/Tasklist) backup.
+              echo ""
+              echo "Step 1/3: history backup ..."
+              curl --fail -sS -X POST "$GATEWAY/actuator/backupHistory" \
+                -H 'Content-Type: application/json' -d "{\"backupId\": $BACKUP_ID}"; echo ""
+              wait_gateway_backup "backupHistory" "HISTORY"
+
+              # 3. Optimize backup.
+              echo ""
+              echo "Step 2/3: Optimize backup ..."
+              curl --fail -sS -X POST "$OPTIMIZE/actuator/backups" \
+                -H 'Content-Type: application/json' -d "{\"backupId\": $BACKUP_ID}"; echo ""
+              wait_optimize_backup
+
+              # 4. Runtime (Zeebe primary storage) backup.
+              echo ""
+              echo "Step 3/3: runtime backup ..."
+              curl --fail -sS -X POST "$GATEWAY/actuator/backupRuntime" \
+                -H 'Content-Type: application/json' -d "{\"backupId\": $BACKUP_ID}"; echo ""
+              wait_gateway_backup "backupRuntime" "RUNTIME"
+
+              echo ""
+              echo "==========================================="
+              echo "SUCCESS: all three snapshots completed for backupId=$BACKUP_ID"
+              echo "  - history  (Operate/Tasklist) -> camunda-backups-webapps"
+              echo "  - optimize                     -> camunda-backups-optimize"
+              echo "  - runtime  (Zeebe)             -> s3://camunda-backups/oc-runtime"
+              echo "==========================================="

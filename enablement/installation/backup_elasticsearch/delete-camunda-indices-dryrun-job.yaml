@@ -1,0 +1,58 @@
+# DRY RUN - lists the Camunda Elasticsearch indices that ./delete-camunda-indices-job.yaml would
+# delete, without deleting anything. Snapshots can only be restored into a cluster where the target
+# indices don't already exist, so a restore (./restore/es-snapshot-restore-job.yaml) is preceded by
+# deleting these. Run this first to see exactly what will go.
+#
+# Covers all four Camunda index families on this variant, INCLUDING optimize-* (the RDBMS track has
+# no Optimize; this variant does):
+#   camunda-*  operate-*  tasklist-*  optimize-*
+#
+# Runs in "camunda" and authenticates to Elasticsearch as the "elastic" superuser (password from the
+# elasticsearch-es-elastic-user Secret copied in by ../elasticsearch/copy-elastic-secret.sh).
+#
+#   kubectl apply -f ./backup_elasticsearch/delete-camunda-indices-dryrun-job.yaml   (from installation/)
+#   kubectl logs -f job/delete-camunda-indices-dryrun -n camunda
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: delete-camunda-indices-dryrun
+  namespace: camunda
+  labels:
+    type: camunda-maintenance
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: delete-indices-dryrun
+          image: curlimages/curl:latest
+          env:
+            - name: ELASTIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: elasticsearch-es-elastic-user
+                  key: elastic
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              ES="http://elasticsearch-es-http.elasticsearch.svc.cluster.local:9200"
+              PATTERN="camunda-*,operate-*,tasklist-*,optimize-*"
+
+              echo "========================================="
+              echo "DRY RUN - indices that WOULD be deleted"
+              echo "========================================="
+              INDICES=$(curl -s -u "elastic:$ELASTIC_PASSWORD" "$ES/_cat/indices/$PATTERN?v")
+              if [ -z "$INDICES" ]; then
+                echo "No indices found matching: $PATTERN"
+                exit 0
+              fi
+              echo "$INDICES"
+              echo ""
+              COUNT=$(curl -s -u "elastic:$ELASTIC_PASSWORD" "$ES/_cat/indices/$PATTERN?h=index" | wc -l)
+              echo "Total indices to delete: $COUNT"
+              echo ""
+              echo "DRY RUN COMPLETE - nothing was deleted."
+              echo "To delete for real: kubectl apply -f ./backup_elasticsearch/delete-camunda-indices-job.yaml"

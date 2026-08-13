@@ -32,7 +32,7 @@ This directory demonstrates two things about a Camunda 8.9 installation, on top 
 - [Restore](#restore)
 - [Reset](#reset)
 - [Other files in this directory](#other-files-in-this-directory)
-- [Variant: Elasticsearch + Optimize + Identity + Web Modeler](#variant-elasticsearch--optimize--identity--web-modeler) — [V1](#v1-create-a-local-cluster-and-install-operators) [V2](#v2-install-postgresql) [V3](#v3-install-keycloak) [V4](#v4-create-realm-clients-and-users) [V5](#v5-install-elasticsearch) [V6](#v6-add-identity--web-modeler-databases) [V7](#v7-copy-secrets) [V8](#v8-install-camunda) [V9](#v9-create-some-data) [V10](#v10-accessing-the-new-uis)
+- [Variant: Elasticsearch + Optimize + Identity + Web Modeler](#variant-elasticsearch--optimize--identity--web-modeler) — [V1](#v1-create-a-local-cluster-and-install-operators) [V2](#v2-install-postgresql) [V3](#v3-install-keycloak) [V4](#v4-create-realm-clients-and-users) [V5](#v5-install-elasticsearch) [V6](#v6-add-identity--web-modeler-databases) [V7](#v7-copy-secrets) [V8](#v8-install-camunda) [V9](#v9-create-some-data) [V10](#v10-accessing-the-new-uis) [V11](#v11-enable-backups-elasticsearch-variant) [Manual backup](#manual-backup-elasticsearch-variant) [Restore](#restore-elasticsearch-variant)
 - [Notes / caveats](#notes--caveats)
 
 ## Architecture Overview
@@ -42,7 +42,7 @@ plus a few resources applied directly with `kubectl` to provision dependencies.
 The Helm values-file slices for the `camunda-platform` chart itself stay flat at the top of this directory 
 (they're all composed together in one `-f ... -f ...` command anyway).
 
-"External" components manifests/scripts live in their own subdirectory: `postgresql/`, `keycloak/`, `monitoring/`, `backup/` (+ `backup/restore/`).
+"External" components manifests/scripts live in their own subdirectory: `postgresql/`, `keycloak/`, `monitoring/`, `backup/` (+ `backup/restore/`). The Elasticsearch + Optimize variant adds `elasticsearch/` and its own backup track `backup_elasticsearch/` (+ `backup_elasticsearch/restore/`) — see the [Variant](#variant-elasticsearch--optimize--identity--web-modeler) section.
 
 `Kind` distinguishes systems the `camunda-platform` chart is merely *configured to talk to* ("External dependency") from the chart's own values-file layers ("Camunda platform"). `Layer` numbers the four root `-f` values files in the order they're additively composed (see [Design Intent](#design-intent)); an external dependency's `Layer` is the first one that needs it.
 
@@ -424,16 +424,21 @@ no RDBMS mode — it only reads Elasticsearch/OpenSearch — so this is a genuin
 `minimal_setup.yaml` and `minimal_setup_elasticsearch.yaml` in the same `-f ... -f ...` line.
 
 **This section is fully self-contained** — every command needed for this track, [V1](#v1-create-a-local-cluster-and-install-operators)
-through [V10](#v10-accessing-the-new-uis), is below; you don't need to jump back into the main
-Installation walkthrough above. It does duplicate some of the same shared building blocks the
+through [V10](#v10-accessing-the-new-uis) (plus the optional backup/restore track,
+[V11](#v11-enable-backups-elasticsearch-variant) onward), is below; you don't need to jump back into
+the main Installation walkthrough above. It does duplicate some of the same shared building blocks the
 RDBMS track uses (the local cluster, the CNPG/Keycloak operators, the `pg-camunda` Postgres
 instance, Keycloak + its realm — Identity requires OIDC) plus the ECK operator/Elasticsearch this
 track alone needs. If you already ran the main walkthrough on this same cluster, the early `kubectl
 apply`s below are no-ops (everything here is idempotent); otherwise this is a complete path from an
 empty cluster. `with_permissions.yaml` composes unchanged on top of either storage base. Monitoring
-([01](#01-install-prometheusgrafana)) and backup/restore ([02](#02-install-minio),
-[08](#08-enable-scheduled-backups)) are independent layers this variant doesn't add — see the main
-guide above if you also want those on top.
+([01](#01-install-prometheusgrafana)) is an independent layer this variant doesn't add — see the main
+guide above if you also want it on top. **Backup/restore for this Elasticsearch variant** — which
+covers Optimize too — is its own self-contained track at the end of this section:
+[V11](#v11-enable-backups-elasticsearch-variant), [Manual backup](#manual-backup-elasticsearch-variant),
+[Restore](#restore-elasticsearch-variant). It follows Camunda's Elasticsearch/OpenSearch backup model
+(one shared backup ID across all components under an exporter pause), which is deliberately different
+from the RDBMS track's model above.
 
 | Concern                        | Kind                 | How                                                                          | Namespace       | File(s)                                                                    |
 |---------------------------------|----------------------|-------------------------------------------------------------------------------|-----------------|------------------------------------------------------------------------------|
@@ -447,6 +452,9 @@ guide above if you also want those on top.
 | Management Identity            | Camunda platform     | Own OIDC client, prepared explicitly (see below)                             | `camunda`       | `with_identity_webmodeler.yaml`                                            |
 | Web Modeler                    | Camunda platform     | Requires Identity; own (public) OIDC client + CNPG-backed project storage   | `camunda`       | `with_identity_webmodeler.yaml`                                            |
 | Chart-consumed secret copies   | Camunda platform     | Elasticsearch/Web Modeler+Identity DB credentials, plus one consolidated `camunda-credentials` Secret for everything Keycloak-facing | `camunda`       | `elasticsearch/copy-elastic-secret.sh`, `camunda-secrets-identity-webmodeler.yaml`, `keycloak/create-realm-and-clients.sh` |
+| Object store (backups)         | External dependency  | Local MinIO, bucket `camunda-backups` (reused from the main guide)          | `minio`         | `backup/minio.yaml`                                                       |
+| Backup — ES snapshot repos     | External dependency  | Elasticsearch S3 snapshot repos → MinIO (Operate/Tasklist history + Optimize); ES keystore creds baked into the ES cluster | `elasticsearch` | `elasticsearch/elasticsearch-cluster.yaml` (secureSettings), `backup_elasticsearch/register-snapshot-job.yaml` |
+| Backup — coordinated + restore | Camunda platform     | One shared backup ID across Zeebe runtime + history + Optimize under an exporter pause; restore overlays | `camunda`       | `values_with_backup_restore_elasticsearch.yml`, `values_to_restore_oc_elasticsearch.yml`, `backup_elasticsearch/` |
 
 Unlike orchestration's own OIDC client (`with_permissions.yaml`'s
 `orchestration.security.authentication.oidc`), Optimize/Identity/Web Modeler share one "External
@@ -735,6 +743,203 @@ the separate `operator`/`tasklist-user`/`admin` realm users V4 always creates.
   `type: "GENERIC"` is what actually disables that initializer; V4's client prep alone does not.
   If you switch back to `type: "KEYCLOAK"` and let Identity self-provision, expect the same
   fragility; see the note under [V8](#v8-install-camunda) for the recovery procedure if it happens.
+
+
+## V11 Enable backups (Elasticsearch variant)
+
+Backup/restore for this variant follows Camunda's [Elasticsearch/OpenSearch backup model](https://docs.camunda.io/docs/self-managed/operational-guides/backup-restore/),
+which is deliberately **different from the RDBMS track's model** in the main guide above. There, the
+two storage halves are backed up on independent staggered schedules and re-aligned at restore via the
+exporter position. Here, **all components share ONE backup ID** and are snapshotted together under a
+single **exporter pause**, because Elasticsearch is the secondary storage for Operate/Tasklist history
+**and** for Optimize. One coordinated backup covers three snapshot streams, all landing in the local
+MinIO bucket `camunda-backups`:
+
+| Stream                          | Trigger                                                  | Lands in                                                                     |
+|---------------------------------|----------------------------------------------------------|------------------------------------------------------------------------------|
+| Zeebe runtime (primary storage) | `POST camunda-zeebe-gateway:9600/actuator/backupRuntime` | `s3://camunda-backups/oc-runtime` (Camunda-managed)                          |
+| Operate/Tasklist history        | `POST camunda-zeebe-gateway:9600/actuator/backupHistory` | ES repo `camunda-backups-webapps` → `s3://camunda-backups/web-apps-indices`  |
+| **Optimize**                    | `POST camunda-optimize:8092/actuator/backups`            | ES repo `camunda-backups-optimize` → `s3://camunda-backups/optimize-indices` |
+
+**1. Install the object store** (same MinIO manifest as the main guide — a no-op if you already have it):
+
+```bash
+kubectl apply -f ./backup/minio.yaml
+```
+
+**2. Give Elasticsearch its S3 credentials.** `elasticsearch/elasticsearch-cluster.yaml` already carries
+the `secureSettings` block and the `elasticsearch-s3-backup-credentials` Secret that load the MinIO
+access/secret keys into the Elasticsearch keystore (needed for any s3-type snapshot repository). If you
+installed Elasticsearch at [V5](#v5-install-elasticsearch) **before** this backup wiring existed,
+re-apply the manifest so ECK picks up the keystore change (it reloads secure settings automatically):
+
+```bash
+kubectl apply -f ./elasticsearch/elasticsearch-cluster.yaml
+```
+
+**3. Copy the MinIO credentials into the `camunda` namespace** (the orchestration release reads them for
+the runtime backup; Secrets are namespace-scoped — same reasoning as `camunda-secrets.yaml`, which this
+variant doesn't apply):
+
+```bash
+kubectl apply -f ./backup_elasticsearch/minio-credentials-camunda.yaml
+```
+
+**4. Add the backup values layer** by re-running the [V8](#v8-install-camunda) install with one extra
+`-f` (`values_with_backup_restore_elasticsearch.yml` — the Elasticsearch counterpart of the RDBMS
+track's `values_with_backup_restore.yml`; it configures the runtime backup store, the history repo
+name `CAMUNDA_DATA_BACKUP_REPOSITORY_NAME`, and Optimize's repo name `CAMUNDA_OPTIMIZE_BACKUP_REPOSITORY_NAME`):
+
+```bash
+helm upgrade --install \
+  camunda camunda-platform \
+  --repo https://helm.camunda.io \
+  --version 14.7.0 \
+  --namespace camunda \
+  -f ./minimal_setup_elasticsearch.yaml \
+  -f ./with_permissions.yaml \
+  -f ./with_optimize.yaml \
+  -f ./with_identity_webmodeler.yaml \
+  -f ./values_with_backup_restore_elasticsearch.yml
+kubectl rollout status statefulset/camunda-zeebe -n camunda --timeout=300s
+```
+
+**5. Register the two Elasticsearch snapshot repositories** (points them at MinIO):
+
+```bash
+kubectl apply -f ./backup_elasticsearch/register-snapshot-job.yaml
+kubectl wait --for=condition=complete --timeout=120s job/register-snapshot-job -n camunda
+```
+
+> **Why no scheduled cron here (unlike the RDBMS track's `:00`/`:10` schedules)?** The coordinated
+> single-backup-ID model needs one pause spanning all three snapshots, which the engine's independent
+> runtime-backup cron can't coordinate with the history/Optimize snapshots. So backups on this variant
+> are taken on demand by the Job below. (You can schedule them by wrapping that Job in a Kubernetes
+> `CronJob` that bumps the backup ID each run.)
+
+## Manual backup (Elasticsearch variant)
+
+Pick a backup ID — an **integer greater than any previous** backup ID; a Unix timestamp works well —
+and put it in the shared `camunda-backup-config` ConfigMap (the take-backup and restore Jobs both read
+it, keeping all streams tied to the same ID):
+
+```bash
+kubectl create configmap camunda-backup-config -n camunda \
+  --from-literal=BACKUP_ID=9999 \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+Run the coordinated backup (pause exporting → history → Optimize → runtime → resume, all one ID):
+
+```bash
+kubectl apply -f ./backup_elasticsearch/take-backup-job.yaml
+kubectl wait --for=condition=complete --timeout=1800s job/camunda-backup-combined -n camunda
+kubectl logs -f job/camunda-backup-combined -n camunda
+```
+
+Verify the objects landed in MinIO (console on port 9001, or `mc`):
+
+```bash
+kubectl port-forward -n minio svc/minio 9000:9000 &
+mc alias set local http://localhost:9000 minioadmin minioadmin
+mc ls --recursive local/camunda-backups/       # oc-runtime/, web-apps-indices/, optimize-indices/
+```
+
+> To take **another** backup later, a completed Job can't be re-run in place — bump the ConfigMap to a
+> new larger ID (the `kubectl create ... | kubectl apply` above) and re-create the Job
+> (`kubectl delete job camunda-backup-combined -n camunda` first, then re-apply).
+
+## Restore (Elasticsearch variant)
+
+Recreates the system from a given backup ID. The Elasticsearch snapshots (history + Optimize) and the
+Zeebe runtime backup are restored in that order, tied together by the shared backup ID. Set
+`camunda-backup-config`'s `BACKUP_ID` to the one you're restoring first:
+
+```bash
+kubectl create configmap camunda-backup-config -n camunda \
+  --from-literal=BACKUP_ID=<the-backup-id> \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+**01 Stop everything that writes to Elasticsearch.** A snapshot can't restore over an open index, and
+nothing may re-create the indices mid-restore — so scale the orchestration cluster (the exporter) and
+Optimize (its importer) to zero:
+
+```bash
+kubectl scale statefulset camunda-zeebe -n camunda --replicas=0
+kubectl scale deployment camunda-optimize -n camunda --replicas=0
+```
+
+**02 Delete the Camunda indices.** Preview first, then delete (`camunda-*`, `operate-*`, `tasklist-*`,
+and `optimize-*`):
+
+```bash
+kubectl apply -f ./backup_elasticsearch/delete-camunda-indices-dryrun-job.yaml
+kubectl logs -f job/delete-camunda-indices-dryrun -n camunda
+kubectl apply -f ./backup_elasticsearch/delete-camunda-indices-job.yaml
+kubectl wait --for=condition=complete --timeout=300s job/delete-camunda-indices -n camunda
+```
+
+**03 Restore the Elasticsearch snapshots** (history + Optimize) for the backup ID. The repositories are
+still registered from install, but re-applying the register Job is harmless and required if the ES
+cluster itself was ever reset:
+
+```bash
+kubectl apply -f ./backup_elasticsearch/register-snapshot-job.yaml   # idempotent; safe to re-run
+kubectl wait --for=condition=complete --timeout=120s job/register-snapshot-job -n camunda
+kubectl apply -f ./backup_elasticsearch/restore/es-snapshot-restore-job.yaml
+kubectl wait --for=condition=complete --timeout=1800s job/camunda-es-snapshot-restore -n camunda
+kubectl logs -f job/camunda-es-snapshot-restore -n camunda
+```
+
+**04 Restore the Zeebe runtime.** Delete the broker's PVC so the restore runs against an empty data
+directory, then redeploy in restore mode. `values_to_restore_oc_elasticsearch.yml` sets
+`SPRING_PROFILES_ACTIVE=restore` + `ZEEBE_RESTORE=true` and passes the backup ID explicitly via
+`ZEEBE_RESTORE_FROM_BACKUP_ID` (Elasticsearch, unlike the RDBMS, doesn't record the exporter position
+for the engine to auto-discover it); layering `minimal_setup_elasticsearch.yaml` underneath keeps the
+ES wiring and disables Optimize/Identity/Web Modeler for the restore run:
+
+```bash
+kubectl delete pvc data-camunda-zeebe-0 -n camunda
+helm upgrade --install \
+  camunda camunda-platform \
+  --repo https://helm.camunda.io \
+  --version 14.7.0 \
+  --namespace camunda \
+  -f ./minimal_setup_elasticsearch.yaml \
+  -f ./values_to_restore_oc_elasticsearch.yml
+```
+
+The restore container restores the partition data, then exits — Kubernetes restarts the StatefulSet
+pod, the restart sees the now-restored (non-empty) directory, and the pod enters `CrashLoopBackOff`
+logging `data directory ... is not empty`. **This is the expected success state.** Confirm on the run
+*before* the current crash-looping one:
+
+```bash
+kubectl logs -n camunda camunda-zeebe-0 --previous | grep -iE "restored|restore"
+```
+
+Do **not** proceed until the restore has actually completed.
+
+**05 Return to normal operation.** Redeploy the full Variant stack (with the backup layer, so backups
+keep working) to leave restore mode and bring Optimize/Identity/Web Modeler back — Optimize re-reads the
+restored `optimize-*` indices:
+
+```bash
+helm upgrade --install \
+  camunda camunda-platform \
+  --repo https://helm.camunda.io \
+  --version 14.7.0 \
+  --namespace camunda \
+  -f ./minimal_setup_elasticsearch.yaml \
+  -f ./with_permissions.yaml \
+  -f ./with_optimize.yaml \
+  -f ./with_identity_webmodeler.yaml \
+  -f ./values_with_backup_restore_elasticsearch.yml
+```
+
+Verify in **Operate** that the process instances from before the backup are visible, and in **Optimize**
+(after its next import cycle) that its reports/data survived.
 
 
 # Notes / caveats

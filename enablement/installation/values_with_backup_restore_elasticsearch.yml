@@ -1,0 +1,80 @@
+# +backup layer for the Elasticsearch + Optimize variant (README "Variant" section). The
+# Elasticsearch counterpart of values_with_backup_restore.yml (which is the RDBMS track's +backup
+# layer). Add it LAST on the Variant's `helm upgrade --install` line:
+#
+#   -f ./minimal_setup_elasticsearch.yaml
+#   -f ./with_permissions.yaml
+#   -f ./with_optimize.yaml
+#   -f ./with_identity_webmodeler.yaml
+#   -f ./values_with_backup_restore_elasticsearch.yml
+#
+# This wires up the three snapshot streams that backup_elasticsearch/take-backup-job.yaml drives
+# under one shared backupId:
+#   1. Zeebe runtime (primary storage) -> local MinIO, s3://camunda-backups/oc-runtime
+#      (configured here via CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_*, same as the RDBMS track).
+#   2. Operate/Tasklist history -> the "camunda-backups-webapps" Elasticsearch snapshot repository
+#      (named here via CAMUNDA_DATA_BACKUP_REPOSITORY_NAME; the repo is registered by
+#      backup_elasticsearch/register-snapshot-job.yaml).
+#   3. Optimize -> the "camunda-backups-optimize" Elasticsearch snapshot repository
+#      (named via CAMUNDA_OPTIMIZE_BACKUP_REPOSITORY_NAME under optimize.env below).
+#
+# UNLIKE the RDBMS track, this does NOT set CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_CONTINUOUS / _SCHEDULE:
+# the Elasticsearch backup model requires all components to share ONE backupId taken under a single
+# exporter pause (backup_elasticsearch/take-backup-job.yaml), which the engine's own independent
+# runtime-backup cron cannot coordinate with the history/Optimize snapshots. Backups here are taken
+# on demand by that Job. This only configures the runtime backup STORE so backupRuntime can write.
+#
+#   https://docs.camunda.io/docs/self-managed/operational-guides/backup-restore/
+#
+# NOTE: passed last, so orchestration.env / optimize.env here are the effective lists (Helm replaces
+# lists rather than merging) - no earlier Variant layer sets either, so nothing is lost.
+
+orchestration:
+    env:
+        - name: ZEEBE_BROKER_EXECUTION_METRICS_EXPORTER_ENABLED
+          value: "true"
+
+        # --- Zeebe runtime (primary storage) backup target: local MinIO (S3-compatible) ---
+        - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_STORE
+          value: "S3"
+        - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_BUCKETNAME
+          value: "camunda-backups"
+        - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_BASEPATH
+          value: "oc-runtime"
+        - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_ENDPOINT
+          value: "http://minio.minio.svc.cluster.local:9000"
+        - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_REGION
+          value: "eu-central-1"   # MinIO ignores this, but the S3 client requires a value
+        # MinIO serves buckets path-style, not virtual-host-style.
+        - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_FORCEPATHSTYLEACCESS
+          value: "true"
+        - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_ACCESSKEY
+          valueFrom:
+            secretKeyRef:
+              name: minio-credentials
+              key: ACCESS_KEY_ID
+        - name: CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_SECRETKEY
+          valueFrom:
+            secretKeyRef:
+              name: minio-credentials
+              key: ACCESS_SECRET_KEY
+
+        # --- Elasticsearch snapshot repository for the Operate/Tasklist history backup
+        # (POST /actuator/backupHistory). Registered by
+        # backup_elasticsearch/register-snapshot-job.yaml. ---
+        - name: CAMUNDA_DATA_BACKUP_REPOSITORY_NAME
+          value: "camunda-backups-webapps"
+
+optimize:
+    # Elasticsearch snapshot repository for Optimize's own backup API
+    # (POST camunda-optimize:8092/actuator/backups). Registered by
+    # backup_elasticsearch/register-snapshot-job.yaml.
+    env:
+        - name: CAMUNDA_OPTIMIZE_BACKUP_REPOSITORY_NAME
+          value: "camunda-backups-optimize"
+
+# minio-credentials must exist in the camunda namespace (copied there for the Camunda release to
+# read, same reasoning as camunda-secrets.yaml). The Variant doesn't apply camunda-secrets.yaml, so
+# apply backup_elasticsearch/minio-credentials-camunda.yaml before this - see the README backup section.
+prometheusServiceMonitor:
+    enabled: false
