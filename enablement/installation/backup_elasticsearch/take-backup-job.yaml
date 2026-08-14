@@ -83,7 +83,7 @@ spec:
                   STATUS=$(echo "$RESP" | grep -o '"state":"[^"]*"' | head -1 | cut -d'"' -f4)
                   echo "[OPTIMIZE] state: ${STATUS:-<pending>}"
                   case "$STATUS" in
-                    COMPLETE) echo "[OPTIMIZE] done."; return 0 ;;
+                    COMPLETE|COMPLETED) echo "[OPTIMIZE] done."; return 0 ;;
                     FAILED|INCOMPLETE|INCOMPATIBLE) echo "[OPTIMIZE] FAILED ($STATUS): $RESP"; return 1 ;;
                   esac
                   sleep 10

@@ -848,6 +848,13 @@ mc ls --recursive local/camunda-backups/       # oc-runtime/, web-apps-indices/,
 > To take **another** backup later, a completed Job can't be re-run in place — bump the ConfigMap to a
 > new larger ID (the `kubectl create ... | kubectl apply` above) and re-create the Job
 > (`kubectl delete job camunda-backup-combined -n camunda` first, then re-apply).
+>
+> **A backup ID can only ever be used once, even for a retry.** If the Job fails partway through
+> (e.g. one step errored but history/Optimize already completed), you can't re-apply it with the
+> *same* ID to pick up where it left off — `backupHistory`/Optimize's backup API reject a reused ID
+> with HTTP 400, since a backup ID must be strictly greater than every ID used before, including
+> partially-completed ones. Bump to a fresh ID and re-run the whole Job from scratch; the exporter
+> pause guarantees the retry gets a consistent snapshot regardless of what the failed attempt did.
 
 ## Restore (Elasticsearch variant)
 

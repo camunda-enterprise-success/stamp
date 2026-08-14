@@ -77,4 +77,4 @@ optimize:
 # read, same reasoning as camunda-secrets.yaml). The Variant doesn't apply camunda-secrets.yaml, so
 # apply backup_elasticsearch/minio-credentials-camunda.yaml before this - see the README backup section.
 prometheusServiceMonitor:
-    enabled: false
+    enabled: true
