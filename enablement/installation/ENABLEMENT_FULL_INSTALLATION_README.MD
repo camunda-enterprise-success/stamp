@@ -10,7 +10,7 @@ Everything here is deployed **into the same local cluster** for convenience, but
 - **Authentication is an in-cluster Keycloak**, deployed via the official **Keycloak operator**.
 - **Backups go to a local MinIO** object store. Both backup halves land in one bucket: the Zeebe runtime (primary storage) and the PostgreSQL secondary storage (via CNPG Barman).
 
-> Targets **Camunda 8.9** via Helm chart `camunda-platform` **14.7.0**. 
+> Targets **Camunda 8.9** via Helm chart `camunda-platform` **14.8.3**. 
 > Chart 14.x deprecates the bundled Bitnami Elasticsearch/Keycloak subcharts (removed in 8.10) 
 > — this guide uses the operator-based replacements instead, following Camunda's [migration-from-bitnami](https://docs.camunda.io/docs/self-managed/deployment/helm/operational-tasks/migration-from-bitnami/) guidance.
 
@@ -214,7 +214,7 @@ Then compose the full configuration with the four `-f` flags (merged in order �
 helm upgrade --install \
   camunda camunda-platform \
   --repo https://helm.camunda.io \
-  --version 14.7.0 \
+  --version 14.8.3 \
   --namespace camunda \
   -f ./minimal_setup.yaml \
   -f ./with_permissions.yaml \
@@ -351,7 +351,7 @@ Redeploy in restore mode. `values_to_restore_oc.yml` sets `SPRING_PROFILES_ACTIV
 helm upgrade --install \
   camunda camunda-platform \
   --repo https://helm.camunda.io \
-  --version 14.7.0 \
+  --version 14.8.3 \
   --namespace camunda \
   -f ./minimal_setup.yaml \
   -f ./values_to_restore_oc.yml
@@ -383,7 +383,7 @@ Redeploy with the standard values (Keycloak + realm must be back — re-run step
 helm upgrade --install \
   camunda camunda-platform \
   --repo https://helm.camunda.io \
-  --version 14.7.0 \
+  --version 14.8.3 \
   --namespace camunda \
   -f ./minimal_setup.yaml \
   -f ./with_permissions.yaml \
@@ -633,7 +633,7 @@ depends on the `global.identity.auth.*` block `with_optimize.yaml` establishes):
 helm upgrade --install \
   camunda camunda-platform \
   --repo https://helm.camunda.io \
-  --version 14.7.0 \
+  --version 14.8.3 \
   --namespace camunda \
   -f ./minimal_setup_elasticsearch.yaml \
   -f ./with_permissions.yaml \
@@ -794,7 +794,7 @@ name `CAMUNDA_DATA_BACKUP_REPOSITORY_NAME`, and Optimize's repo name `CAMUNDA_OP
 helm upgrade --install \
   camunda camunda-platform \
   --repo https://helm.camunda.io \
-  --version 14.7.0 \
+  --version 14.8.3 \
   --namespace camunda \
   -f ./minimal_setup_elasticsearch.yaml \
   -f ./with_permissions.yaml \
@@ -911,7 +911,7 @@ kubectl delete pvc data-camunda-zeebe-0 -n camunda
 helm upgrade --install \
   camunda camunda-platform \
   --repo https://helm.camunda.io \
-  --version 14.7.0 \
+  --version 14.8.3 \
   --namespace camunda \
   -f ./minimal_setup_elasticsearch.yaml \
   -f ./values_to_restore_oc_elasticsearch.yml
@@ -936,7 +936,7 @@ restored `optimize-*` indices:
 helm upgrade --install \
   camunda camunda-platform \
   --repo https://helm.camunda.io \
-  --version 14.7.0 \
+  --version 14.8.3 \
   --namespace camunda \
   -f ./minimal_setup_elasticsearch.yaml \
   -f ./with_permissions.yaml \
