@@ -1,4 +1,4 @@
-# Zeebe runtime (primary storage) RESTORE overlay for the Elasticsearch + Optimize variant - the
+# Zeebe runtime (primary storage) RESTORE overlay for the Elasticsearch + Optimize track - the
 # Camunda-side half of the restore. The Elasticsearch counterpart of values_to_restore_oc.yml (the
 # RDBMS track's restore overlay). Layered ON TOP of ./minimal_setup_elasticsearch.yaml (which supplies
 # the Elasticsearch secondary-storage wiring and disables Optimize/Identity/Web Modeler/connectors),
@@ -9,7 +9,7 @@
 #     -f ./minimal_setup_elasticsearch.yaml \
 #     -f ./values_to_restore_oc_elasticsearch.yml
 #
-# Prerequisites (see the README "Restore (Elasticsearch variant)" section): the Elasticsearch
+# Prerequisites (see ENABLEMENT_INSTALLATION_ELASTICSEARCH.MD's Restore section): the Elasticsearch
 # snapshots for this same backupId have ALREADY been restored (backup_elasticsearch/restore/
 # es-snapshot-restore-job.yaml, after deleting the old indices and re-registering the repos), and
 # Zeebe's PVC is empty. This run rebuilds Zeebe's local state from the matching runtime backup in
@@ -20,7 +20,7 @@
 # The restore container exits when done; Kubernetes then reports CrashLoopBackOff on the pod (it
 # restarts, sees the now-restored non-empty data dir, and logs "data directory ... is not empty") -
 # that is the EXPECTED success state. Check `kubectl logs <pod> --previous` for the restore success
-# line, then redeploy with the normal Variant values (README step) to return to service - at which
+# line, then redeploy with the normal values for this track (see that guide) to return to service - at which
 # point Optimize reads the restored optimize-* indices again.
 
 orchestration:

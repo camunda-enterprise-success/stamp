@@ -5,7 +5,7 @@
 # this replaces the deprecated bundled Bitnami Elasticsearch subchart (removed in Camunda 8.10).
 #
 # Lives in its own "elasticsearch" namespace - same layering principle as postgres/keycloak/minio.
-# Install the ECK operator CRDs + controller first (see the README's Prerequisites), then
+# Install the ECK operator CRDs + controller first (see ENABLEMENT_INSTALLATION_ELASTICSEARCH.MD's Prerequisites), then
 # `kubectl apply -f` this file.
 #
 # Single node, TLS disabled - matches this guide's "single instance, no HA" / "no Ingress, TLS"
@@ -22,7 +22,7 @@
 # ECK also creates the read Service this points at: elasticsearch-es-http.elasticsearch.svc.cluster.local:9200
 #
 # --- S3 snapshot backup wiring (for the ../backup_elasticsearch/ backup/restore option) ---
-# Elasticsearch is this variant's secondary storage, so its snapshots ARE the secondary-storage half
+# Elasticsearch is this track's secondary storage, so its snapshots ARE the secondary-storage half
 # of a backup (they also cover Optimize). Taking snapshots into the local MinIO object store
 # (../backup/minio.yaml, bucket "camunda-backups") requires the S3 client credentials to live in
 # Elasticsearch's own keystore under the fixed keys s3.client.default.access_key/secret_key. On ECK

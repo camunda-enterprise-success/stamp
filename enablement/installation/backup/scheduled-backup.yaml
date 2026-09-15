@@ -7,7 +7,7 @@
 # The two schedules are deliberately staggered, not simultaneous: this one fires at :00, the
 # Zeebe one at :10 (10 minutes later). Restore requires
 #   Zeebe primary-storage backup position >= RDBMS exporter position
-# (see the README's "Backup / restore coordination" section) - taking the RDBMS backup first
+# (see ENABLEMENT_INSTALLATION_RDBMS.MD's "Backup / restore coordination" section) - taking the RDBMS backup first
 # and giving it a head start means the Zeebe backup, once it runs, reflects a log state that's
 # strictly newer than what Postgres captured. Both `schedule` fields here are genuine CRON
 # expressions (6-field, seconds-leading), not the ISO-8601 duration form

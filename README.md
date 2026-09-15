@@ -244,6 +244,10 @@ Planned providers:
 
 `enablement/` contains TAM training content and onboarding materials for getting customers and internal teams up to speed on Camunda 8 deployments.
 
+- [`enablement/installation/`](enablement/installation/README.md) — full Camunda 8.9 installation walkthroughs on a local cluster (monitoring, OIDC, backup/restore), in two tracks: [RDBMS](enablement/installation/ENABLEMENT_INSTALLATION_RDBMS.MD) or [Elasticsearch + Optimize/Identity/Web Modeler](enablement/installation/ENABLEMENT_INSTALLATION_ELASTICSEARCH.MD)
+- [`enablement/upgrades/`](enablement/upgrades/ENABLEMENT_UPGRADES_README.MD) — Helm upgrade exercises, 8.6 → 8.9
+- [`enablement/benchmarking/`](enablement/benchmarking/BENCHMARK_README.MD) — load-generation and benchmarking exercises
+
 ---
 
 ## Deployment References Mirror

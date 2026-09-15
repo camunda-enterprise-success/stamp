@@ -1,4 +1,4 @@
-# Registers the two Elasticsearch S3 snapshot repositories this variant's backup/restore uses, both
+# Registers the two Elasticsearch S3 snapshot repositories the Elasticsearch track's backup/restore uses, both
 # pointing at the local MinIO object store (../backup/minio.yaml, bucket "camunda-backups"):
 #
 #   camunda-backups-webapps   base_path web-apps-indices   <- Operate/Tasklist history (backupHistory)

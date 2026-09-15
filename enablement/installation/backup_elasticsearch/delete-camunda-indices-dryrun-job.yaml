@@ -3,8 +3,8 @@
 # indices don't already exist, so a restore (./restore/es-snapshot-restore-job.yaml) is preceded by
 # deleting these. Run this first to see exactly what will go.
 #
-# Covers all four Camunda index families on this variant, INCLUDING optimize-* (the RDBMS track has
-# no Optimize; this variant does):
+# Covers all four Camunda index families on this track, INCLUDING optimize-* (the RDBMS track has
+# no Optimize; this one does):
 #   camunda-*  operate-*  tasklist-*  optimize-*
 #
 # Runs in "camunda" and authenticates to Elasticsearch as the "elastic" superuser (password from the

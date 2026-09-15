@@ -7,8 +7,8 @@
 # makes secondary storage a hard fork at the base layer, unlike every other capability in this
 # directory, which is why this is a second base file rather than another additive `-f` layer on
 # top of minimal_setup.yaml. Everything else composes on top of either base the same way -
-# with_permissions.yaml works unmodified against both; see the README's "Variant: Elasticsearch +
-# Optimize + Identity + Web Modeler" section for the full picture of what composes with this file
+# with_permissions.yaml works unmodified against both; see ENABLEMENT_INSTALLATION_ELASTICSEARCH.MD
+# for the full picture of what composes with this file
 # (with_optimize.yaml, with_identity_webmodeler.yaml).
 #
 # Per Camunda's migration-from-bitnami guidance

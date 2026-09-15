@@ -6,7 +6,7 @@ INSTANCE_COUNT="${INSTANCE_COUNT:-10}"
 
 # Connection handling:
 #  - If the caller passes --profile / --baseUrl (e.g. --profile=enablement, as in
-#    ENABLEMENT_FULL_INSTALLATION_README.MD), it is forwarded untouched and nothing
+#    installation/README.md), it is forwarded untouched and nothing
 #    is injected — that path is unchanged.
 #  - Otherwise fall back to the unprotected local API. The Speedrun install
 #    (real_minimal_setup.yaml sets orchestration.security.authentication.unprotectedApi:

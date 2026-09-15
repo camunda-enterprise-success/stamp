@@ -7,14 +7,14 @@
 #     -f ./minimal_setup.yaml \
 #     -f ./values_to_restore_oc.yml
 #
-# Prerequisites (see the README Restore section): the Postgres database has ALREADY been
+# Prerequisites (see ENABLEMENT_INSTALLATION_RDBMS.MD's Restore section): the Postgres database has ALREADY been
 # recovered from Barman (backup/restore/postgresql-cluster-restore.yaml), and Zeebe's PVC is empty. The
 # restore container reads the exporter position from the recovered RDBMS, finds the matching
 # primary-storage backup in MinIO, and rebuilds Zeebe's local state from it.
 #
 # The restore container exits when done; Kubernetes then reports CrashLoopBackOff on the pod -
 # that is EXPECTED. Check `kubectl logs <pod> --previous` for "Successfully restored broker
-# from backup", then redeploy with the normal values (README step) to return to service.
+# from backup", then redeploy with the normal values (see ENABLEMENT_INSTALLATION_RDBMS.MD) to return to service.
 
 orchestration:
   env:

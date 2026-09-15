@@ -1,8 +1,8 @@
 # DESTRUCTIVE - deletes all Camunda Elasticsearch indices so a snapshot restore can recreate them.
 # Run ./delete-camunda-indices-dryrun-job.yaml first to preview, and only run this as part of the
-# restore procedure (README "Restore (Elasticsearch variant)"), with Zeebe scaled to 0.
+# restore procedure (ENABLEMENT_INSTALLATION_ELASTICSEARCH.MD, Restore), with Zeebe scaled to 0.
 #
-# Covers all four index families on this variant, INCLUDING optimize-*:
+# Covers all four index families on this track, INCLUDING optimize-*:
 #   camunda-*  operate-*  tasklist-*  optimize-*
 # (A snapshot cannot be restored on top of an existing open index - these must be gone first.)
 #

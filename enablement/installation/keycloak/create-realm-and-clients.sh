@@ -72,7 +72,7 @@
 #   - orchestration    / orchestration    -> the interactive OIDC client's ID/secret pair
 #   - benchmark-client / benchmark-client -> the service-account client's ID/secret pair
 #                                            (matches the `c8ctl add profile` example in
-#                                            ../ENABLEMENT_FULL_INSTALLATION_README.MD)
+#                                            ../README.md)
 #   - camunda-identity / camunda-identity -> Management Identity's own client ID/secret pair
 #   - optimize         / optimize         -> Optimize's client ID/secret pair
 #   - web-modeler      / (n/a, public)     -> Web Modeler's client ID (no secret)
@@ -188,7 +188,7 @@ kubectl create secret generic camunda-keycloak-client-secrets \
 
 echo "Creating service-account client '$BENCHMARK_CLIENT_ID' (secret: '$BENCHMARK_CLIENT_SECRET') ..."
 # client_credentials only - no interactive login, so standard flow is off. Used by a c8ctl
-# profile (see ../ENABLEMENT_FULL_INSTALLATION_README.MD) to authenticate the utility scripts
+# profile (see ../README.md) to authenticate the utility scripts
 # under ../../utils against the v2 API.
 kc_exec create clients -r "$REALM" \
   -s clientId="$BENCHMARK_CLIENT_ID" \

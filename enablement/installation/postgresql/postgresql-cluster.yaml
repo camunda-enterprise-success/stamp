@@ -10,8 +10,8 @@
 # Service via pg-camunda-rw.postgres.svc.cluster.local: the Camunda orchestration cluster
 # (camunda ns, ../minimal_setup.yaml) and Keycloak (keycloak ns, ../keycloak/keycloak-instance.yaml).
 #
-# Also hosts two more databases for the Elasticsearch + Optimize + Identity + Web Modeler variant
-# (see the README's "Variant" section) - Management Identity's and Web Modeler's own app data,
+# Also hosts two more databases for the Elasticsearch + Optimize + Identity + Web Modeler track
+# (see ENABLEMENT_INSTALLATION_ELASTICSEARCH.MD) - Management Identity's and Web Modeler's own app data,
 # added via the "identity"/"webmodeler" roles below and the Database CRs in
 # ../postgresql-databases-identity-webmodeler.yaml. Same shared-instance rationale as Keycloak's
 # database: this is a fresh install with no pre-existing RDBMS, so one shared instance is leaner
@@ -31,7 +31,7 @@
 # declared in the camunda namespace (../camunda-secrets.yaml), keycloak-rdbms-credentials in the
 # keycloak namespace (../keycloak/keycloak-instance.yaml), identity-rdbms-credentials and
 # webmodeler-rdbms-credentials in the camunda namespace too
-# (../camunda-secrets-identity-webmodeler.yaml, Variant section only), and minio-credentials in the
+# (../camunda-secrets-identity-webmodeler.yaml, Elasticsearch track only), and minio-credentials in the
 # minio namespace (../backup/minio.yaml):
 #
 #   kubectl create secret generic camunda-rdbms-credentials \
@@ -84,7 +84,7 @@ stringData:
   username: keycloak
   password: keycloak
 ---
-# Variant only (see the README's "Variant" section) - Management Identity's and Web Modeler's own
+# Elasticsearch track only (see ENABLEMENT_INSTALLATION_ELASTICSEARCH.MD) - Management Identity's and Web Modeler's own
 # login roles, added to this same instance.
 apiVersion: v1
 kind: Secret
@@ -135,7 +135,7 @@ spec:
         login: true
         passwordSecret:
           name: keycloak-rdbms-credentials
-      # Variant only (see the README's "Variant" section) - login roles for Management Identity's
+      # Elasticsearch track only (see ENABLEMENT_INSTALLATION_ELASTICSEARCH.MD) - login roles for Management Identity's
       # and Web Modeler's own databases (../postgresql-databases-identity-webmodeler.yaml).
       - name: identity
         ensure: present
@@ -176,7 +176,7 @@ spec:
 ---
 # Second database on the same instance/role set above - owned by the "keycloak" role,
 # referenced by ../keycloak/keycloak-instance.yaml. The "identity" and "webmodeler" databases
-# (Variant only) are Database CRs of their own, in ../postgresql-databases-identity-webmodeler.yaml.
+# (Elasticsearch track only) are Database CRs of their own, in ../postgresql-databases-identity-webmodeler.yaml.
 apiVersion: postgresql.cnpg.io/v1
 kind: Database
 metadata:

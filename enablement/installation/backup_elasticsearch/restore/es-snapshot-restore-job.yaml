@@ -1,7 +1,7 @@
 # Restores the Elasticsearch snapshots (Operate/Tasklist history + Optimize) for a given backupId
 # from both MinIO-backed repositories. This is the secondary-storage half of a restore; the Zeebe
 # runtime (primary storage) half is done separately via ../../values_to_restore_oc_elasticsearch.yml.
-# See the README "Restore (Elasticsearch variant)" section for the full ordered procedure.
+# See ENABLEMENT_INSTALLATION_ELASTICSEARCH.MD's Restore section for the full ordered procedure.
 #
 # Prerequisites (all in the restore procedure):
 #   - Zeebe scaled to 0 (no new writes to the indices)

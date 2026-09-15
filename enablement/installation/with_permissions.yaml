@@ -1,6 +1,6 @@
 # Layer 2 (+permissions) - additive layer on top of minimal_setup.yaml, adding OIDC-based
 # authentication and fine-grained authorization (roles, mapping rules, authorizations). Applied
-# via an extra `-f` flag alongside minimal_setup.yaml - see the README's "Design Intent" section
+# via an extra `-f` flag alongside minimal_setup.yaml - see the README's "Design intent" section
 # and the Architecture Overview table.
 #
 # The OIDC provider itself is an external dependency, not something this file or the

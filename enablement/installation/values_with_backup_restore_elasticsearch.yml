@@ -1,6 +1,6 @@
-# +backup layer for the Elasticsearch + Optimize variant (README "Variant" section). The
+# +backup layer for the Elasticsearch + Optimize track (see ENABLEMENT_INSTALLATION_ELASTICSEARCH.MD). The
 # Elasticsearch counterpart of values_with_backup_restore.yml (which is the RDBMS track's +backup
-# layer). Add it LAST on the Variant's `helm upgrade --install` line:
+# layer). Add it LAST on that track's `helm upgrade --install` line:
 #
 #   -f ./minimal_setup_elasticsearch.yaml
 #   -f ./with_permissions.yaml
@@ -27,7 +27,7 @@
 #   https://docs.camunda.io/docs/self-managed/operational-guides/backup-restore/
 #
 # NOTE: passed last, so orchestration.env / optimize.env here are the effective lists (Helm replaces
-# lists rather than merging) - no earlier Variant layer sets either, so nothing is lost.
+# lists rather than merging) - no earlier layer on this track sets either, so nothing is lost.
 
 orchestration:
     env:
@@ -74,7 +74,7 @@ optimize:
           value: "camunda-backups-optimize"
 
 # minio-credentials must exist in the camunda namespace (copied there for the Camunda release to
-# read, same reasoning as camunda-secrets.yaml). The Variant doesn't apply camunda-secrets.yaml, so
-# apply backup_elasticsearch/minio-credentials-camunda.yaml before this - see the README backup section.
+# read, same reasoning as camunda-secrets.yaml). This track doesn't apply camunda-secrets.yaml, so
+# apply backup_elasticsearch/minio-credentials-camunda.yaml before this - see ENABLEMENT_INSTALLATION_ELASTICSEARCH.MD's backup section.
 prometheusServiceMonitor:
     enabled: true

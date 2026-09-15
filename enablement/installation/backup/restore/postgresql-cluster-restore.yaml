@@ -5,8 +5,8 @@
 # A Barman physical backup restores the ENTIRE instance - both the "camunda" and "keycloak"
 # databases and all roles - so this one apply brings the whole secondary storage back.
 #
-# Use this in place of ../../postgresql/postgresql-cluster.yaml during a restore (see the README Restore
-# section). The cluster keeps the same name (pg-camunda) in the same "postgres" namespace, so
+# Use this in place of ../../postgresql/postgresql-cluster.yaml during a restore (see ENABLEMENT_INSTALLATION_RDBMS.MD's
+# Restore section). The cluster keeps the same name (pg-camunda) in the same "postgres" namespace, so
 # every Service DNS reference elsewhere (pg-camunda-rw.postgres.svc.cluster.local) still
 # resolves unchanged.
 #
@@ -20,7 +20,7 @@
 # IMPORTANT: spec.bootstrap.recovery.recoveryTarget below must be filled in with a bounded
 # point (targetTime by default) before you apply this file - recovering to "latest" WAL is
 # unsafe even when the backup schedules are correctly staggered. See the recoveryTarget
-# comments below and the README's "Backup / restore coordination" section.
+# comments below and ENABLEMENT_INSTALLATION_RDBMS.MD's "Backup / restore coordination" section.
 
 apiVersion: v1
 kind: Namespace
@@ -84,7 +84,7 @@ spec:
     # range - restore then fails with something like:
     #   No usable range found for partition 1 with from=null, exportedPosition=370.
     #   Available ranges: [RangeEntry[start=..., end=...]]
-    # See the README "Backup / restore coordination" section for the full explanation.
+    # See ENABLEMENT_INSTALLATION_RDBMS.MD's "Backup / restore coordination" section for the full explanation.
     #
     # Pick ONE of the two options below - do not set both target modes at once.
     recovery:

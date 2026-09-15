@@ -31,15 +31,15 @@ global:
   identity:
     auth:
       webModeler:
-        # Works if a port-forward to Web Modeler is created to 8070 (see the README's "Accessing
-        # the UIs" step in the Variant section). Includes webModeler.contextPath below, matching
+        # Works if a port-forward to Web Modeler is created to 8070 (see the "Accessing
+        # the UIs" step in ENABLEMENT_INSTALLATION_ELASTICSEARCH.MD). Includes webModeler.contextPath below, matching
         # create-realm-and-clients.sh's WEBMODELER_URL.
         redirectUrl: "http://localhost:8070/modeler"
 
 identity:
   enabled: true
   contextPath: "/identity"
-  # For a port-forward to Identity on 8084 (see the README's "Accessing the UIs" step) - includes
+  # For a port-forward to Identity on 8084 (see the "Accessing the UIs" step in ENABLEMENT_INSTALLATION_ELASTICSEARCH.MD) - includes
   # the contextPath above, matching create-realm-and-clients.sh's IDENTITY_URL. No firstUser/env
   # block: those are the KEYCLOAK-type admin-API mechanism (../with_optimize.yaml's auth.type
   # comment) - under GENERIC, the pre-created "admin" Keycloak user becomes Identity's admin via

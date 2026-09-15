@@ -2,7 +2,7 @@
 # This is the Elasticsearch/OpenSearch backup model (single backupId across every component, taken
 # under an exporter pause), which is fundamentally different from the RDBMS track's model in
 # ../backup/manual-backup.sh (two independent halves, staggered schedules, no pause). See the
-# README's "Backup (Elasticsearch variant)" section.
+# ENABLEMENT_INSTALLATION_ELASTICSEARCH.MD's backup section.
 #
 # BACKUP_ID comes from the camunda-backup-config ConfigMap (envFrom below), created before this Job:
 #   kubectl create configmap camunda-backup-config -n camunda --from-literal=BACKUP_ID=$(date +%s)
