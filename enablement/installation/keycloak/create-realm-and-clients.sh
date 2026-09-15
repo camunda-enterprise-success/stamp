@@ -101,7 +101,7 @@ OPTIMIZE_CLIENT_ID=${OPTIMIZE_CLIENT_ID:-optimize}
 OPTIMIZE_CLIENT_SECRET=${OPTIMIZE_CLIENT_SECRET:-optimize}
 OPTIMIZE_AUDIENCE=${OPTIMIZE_AUDIENCE:-optimize-api}
 # Matches optimize.contextPath: "/optimize" in ../with_optimize.yaml.
-OPTIMIZE_URL=${OPTIMIZE_URL:-http://localhost:8083/optimize}
+OPTIMIZE_URL=${OPTIMIZE_URL:-http://localhost:8090/optimize}
 WEBMODELER_CLIENT_ID=${WEBMODELER_CLIENT_ID:-web-modeler}
 # Matches webModeler.contextPath: "/modeler" in ../with_identity_webmodeler.yaml.
 WEBMODELER_URL=${WEBMODELER_URL:-http://localhost:8070/modeler}

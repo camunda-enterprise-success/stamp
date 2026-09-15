@@ -62,10 +62,10 @@ global:
         initialClaimName: preferred_username
         initialClaimValue: admin
       optimize:
-        # Works if a port-forward to Optimize is created to 8083 (see the README's "Accessing the
+        # Works if a port-forward to Optimize is created to 8090 (see the README's "Accessing the
         # UIs" step in the Variant section). Includes optimize.contextPath below, matching
         # keycloak/create-realm-and-clients.sh's OPTIMIZE_URL.
-        redirectUrl: "http://localhost:8083/optimize"
+        redirectUrl: "http://localhost:8090/optimize"
         secret:
           existingSecret: "camunda-credentials"
           existingSecretKey: "identity-optimize-client-token"
