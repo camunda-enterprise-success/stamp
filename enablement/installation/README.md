@@ -1,5 +1,9 @@
 # Full Camunda 8.9 Installation — Enablement Guides
 
+> **Enablement material — not an official Camunda product or documentation artifact.** These
+> guides exist to teach the installation side of Camunda 8 Self-Managed hands-on, and are
+> maintained on a best-effort basis. See [Scope, audience & support](#scope-audience--support).
+
 Two hands-on walkthroughs for deploying a full Camunda 8 stack — Prometheus/Grafana monitoring,
 OIDC-based permissions, and scheduled backup/restore — on a local Kubernetes cluster (e.g. kind).
 They exist to give hands-on experience with the platform capabilities you need to set up or
@@ -19,12 +23,43 @@ monitoring stack are all external dependencies (see [Design intent](#design-inte
 
 ## Contents
 
+- [Scope, audience & support](#scope-audience--support)
 - [Choose your track](#choose-your-track)
 - [Design intent](#design-intent)
 - [Why operators — and what else you could use](#why-operators--and-what-else-you-could-use)
 - [Shared architecture](#shared-architecture)
 - [Repository map](#repository-map)
 - [Notes / caveats](#notes--caveats)
+
+## Scope, audience & support
+
+**What this is.** Enablement material for the *installation* side of Camunda 8 Self-Managed. It
+explains the concepts you need in order to reason about a real deployment — layered Helm values
+files, secondary storage, external dependencies, OIDC-based authentication, the two backup/restore
+models — and it gives you hands-on experience with them on a throwaway local cluster you can break
+and rebuild at will.
+
+**What this is not.** It is not part of the Camunda product, it is not official Camunda
+documentation, and it is not a production reference architecture. Nobody is on call for it: it is
+maintained on a best-effort basis by the people who use it for teaching, it is pinned to a specific
+release (Camunda 8.9, chart `14.8.3`) and it will drift as the product moves on. Camunda Support
+does not cover this repository. The deliberate local-only shortcuts — hardcoded credentials, no
+Ingress or TLS, single-instance everything — are listed under [Notes / caveats](#notes--caveats);
+none of them belong anywhere but a local cluster. (Separately, and independently of this repository:
+[what Camunda does and doesn't support about external dependencies](#why-operators--and-what-else-you-could-use)
+is a product question, and the answer doesn't change with how you deploy them.)
+
+**If you work at Camunda.** Use this to ramp up on installations yourself, and as a sandbox for the
+scenarios you get asked about. Questions, corrections and additions are very welcome — raise them
+with the TAM team, or with the maintainers of this directory, rather than as product or
+documentation issues.
+
+**If you are a customer or partner.** Treat everything here as illustrative: it shows *how the
+pieces fit together*, not what your environment should look like. For a production setup, work from
+the [Camunda 8 Self-Managed documentation](https://docs.camunda.io/docs/self-managed/) and the
+official [camunda/camunda-deployment-references](https://github.com/camunda/camunda-deployment-references)
+repository, and lean on your assigned TAM/CSM — they can size, review and sign off on a design in a
+way that a teaching guide cannot.
 
 ## Choose your track
 

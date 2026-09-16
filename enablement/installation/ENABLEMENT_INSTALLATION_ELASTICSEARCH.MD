@@ -1,5 +1,10 @@
 # Installation — Elasticsearch track (+ Optimize, Identity, Web Modeler)
 
+> **Enablement material, not official Camunda documentation** — maintained on a best-effort
+> basis for teaching. For a production setup, follow the
+> [Camunda 8 Self-Managed documentation](https://docs.camunda.io/docs/self-managed/) and your
+> Camunda TAM/CSM. Details: [Scope, audience & support](./README.md#scope-audience--support).
+
 Deploys a Camunda 8.9 orchestration cluster with **Elasticsearch secondary storage** (via the **ECK
 operator**, replacing the deprecated bundled Bitnami subchart) and adds **Optimize**, **Management
 Identity**, and **Web Modeler** on top, plus Prometheus/Grafana monitoring, OIDC permissions against

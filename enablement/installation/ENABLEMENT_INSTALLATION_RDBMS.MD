@@ -1,5 +1,10 @@
 # Installation — RDBMS track (PostgreSQL secondary storage)
 
+> **Enablement material, not official Camunda documentation** — maintained on a best-effort
+> basis for teaching. For a production setup, follow the
+> [Camunda 8 Self-Managed documentation](https://docs.camunda.io/docs/self-managed/) and your
+> Camunda TAM/CSM. Details: [Scope, audience & support](./README.md#scope-audience--support).
+
 Deploys a Camunda 8.9 orchestration cluster with **PostgreSQL (RDBMS) secondary storage**,
 Prometheus/Grafana monitoring, OIDC permissions against an in-cluster Keycloak, and scheduled
 backup/restore to a local MinIO — all on a local Kubernetes cluster (e.g. kind).
