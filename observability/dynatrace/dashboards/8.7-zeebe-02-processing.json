@@ -1,0 +1,1846 @@
+{
+  "version": 21,
+  "variables": [
+    {
+      "version": 2,
+      "key": "Namespace",
+      "type": "query",
+      "visible": true,
+      "editable": true,
+      "input": "timeseries n = count(zeebe.health), by: {k8s.namespace.name}\n| fields k8s.namespace.name\n| sort k8s.namespace.name asc",
+      "multiple": true,
+      "defaultValue": [
+        "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+      ]
+    },
+    {
+      "version": 2,
+      "key": "Pod",
+      "type": "query",
+      "visible": true,
+      "editable": true,
+      "input": "timeseries n = count(zeebe.health),\n  by: {k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace))}\n| fields k8s.pod.name\n| sort k8s.pod.name asc",
+      "multiple": true,
+      "defaultValue": [
+        "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+      ]
+    },
+    {
+      "version": 2,
+      "key": "Partition",
+      "type": "query",
+      "visible": true,
+      "editable": true,
+      "input": "timeseries n = count(atomix.role),\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace))}\n| fields partition\n| sort partition asc",
+      "multiple": true,
+      "defaultValue": [
+        "3420b2ac-f1cf-4b24-b62d-61ba1ba8ed05*"
+      ]
+    }
+  ],
+  "tiles": {
+    "1": {
+      "type": "markdown",
+      "content": "# Camunda 8.7 — Zeebe Processing & Latency\n\nPorted from the Camunda Grafana dashboard `8.7.35-zeebe.json`. Metrics are expected in Grail as **Micrometer meter names** (`zeebe.stream.processor.records.total`), pushed straight from Camunda over OTLP with `delta` temporality — see `runbook-dynatrace.md`.\n\n**Companion dashboards:** `8.7-zeebe-01-overview.json` · `8.7-zeebe-03-storage.json` · `8.7-zeebe-04-cluster.json` · `8.7-zeebe-05-resources.json`"
+    },
+    "2": {
+      "type": "markdown",
+      "content": "## Processing\nStream processor and exporter progress, positions and lag."
+    },
+    "3": {
+      "type": "data",
+      "title": "Processing Queue size",
+      "query": "timeseries {\n    appended_position_a = max(zeebe.log.appender.last.appended.position),\n    processed_position_b = max(zeebe.stream.processor.last.processed.position)\n  },\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition))},\n  union: true\n| fieldsAdd delta = appended_position_a[] - processed_position_b[]\n| fieldsRemove appended_position_a, processed_position_b",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the processing queue size over time. Processing queue defines, what is already appended but not yet processed by the stream processor."
+    },
+    "4": {
+      "type": "data",
+      "title": "Batch processing command count",
+      "query": "timeseries {\n    p50 = percentile(zeebe.stream.processor.batch.processing.commands, 50),\n    p90 = percentile(zeebe.stream.processor.batch.processing.commands, 90),\n    p99 = percentile(zeebe.stream.processor.batch.processing.commands, 99)\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Show the distribution of commands in the batches over time\n\nGrafana rendered this as a histogram heatmap; Dynatrace charts the p50/p90/p99 percentiles of the same histogram instead."
+    },
+    "5": {
+      "type": "data",
+      "title": "Number of batch processing retries",
+      "query": "timeseries retry_per_sec = sum(zeebe.stream.processor.batch.processing.retry, rate:1s),\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows how often we have retried batch processing due to reaching the maximum batch size."
+    },
+    "6": {
+      "type": "data",
+      "title": "Number of records exported but not acknowledged",
+      "query": "timeseries {\n    exported_position_a = max(zeebe.exporter.last.exported.position),\n    exported_position_b = max(zeebe.exporter.last.updated.exported.position)\n  },\n  by: {exporter, k8s.pod.name, partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition))},\n  union: true\n| fieldsAdd delta = exported_position_a[] - exported_position_b[]\n| fieldsRemove exported_position_a, exported_position_b",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows how many positions are not updated by exporters per partition. Means what is the difference between last committed exporter position and committed log position."
+    },
+    "7": {
+      "type": "data",
+      "title": "Processing Error Handling Phase",
+      "query": "timeseries error_phase = max(zeebe.stream.processor.error.handling.phase),\n  by: {k8s.pod.name, partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))}\n| filter arrayMax(error_phase) > 0",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Ported from Grafana: Grafana rendered this as a state timeline over `> 0`. Dynatrace has no state-timeline visualization, so the numeric phase is charted and series that never leave NO_ERROR are filtered out."
+    },
+    "8": {
+      "type": "data",
+      "title": "Number of records not exported",
+      "query": "timeseries {\n    committed_position_a = max(zeebe.log.appender.last.committed.position),\n    exported_position_b = max(zeebe.exporter.last.exported.position, filter:{exporter == \"elasticsearch\"})\n  },\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition))},\n  union: true\n| fieldsAdd delta = committed_position_a[] - exported_position_b[]\n| fieldsRemove committed_position_a, exported_position_b",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows how many records are not exported yet."
+    },
+    "9": {
+      "type": "data",
+      "title": "Last updated exported position",
+      "query": "timeseries exported_position = max(zeebe.exporter.last.updated.exported.position),\n  by: {exporter, partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition))}",
+      "visualization": "table",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "table": {
+          "rowDensity": "condensed",
+          "enableSparklines": true,
+          "hiddenColumns": [],
+          "linewrapEnabled": false,
+          "monospacedFontEnabled": false
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the last exported position which was committed by the given exporter per partition."
+    },
+    "10": {
+      "type": "data",
+      "title": "Last appended position",
+      "query": "timeseries appended_position = max(zeebe.log.appender.last.appended.position),\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition))}",
+      "visualization": "table",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "table": {
+          "rowDensity": "condensed",
+          "enableSparklines": true,
+          "hiddenColumns": [],
+          "linewrapEnabled": false,
+          "monospacedFontEnabled": false
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the position, which was appended last by the leader per partition."
+    },
+    "11": {
+      "type": "data",
+      "title": "Last committed position",
+      "query": "timeseries committed_position = max(zeebe.log.appender.last.committed.position),\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition))}",
+      "visualization": "table",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "table": {
+          "rowDensity": "condensed",
+          "enableSparklines": true,
+          "hiddenColumns": [],
+          "linewrapEnabled": false,
+          "monospacedFontEnabled": false
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the last committed log position."
+    },
+    "12": {
+      "type": "data",
+      "title": "Last processed position",
+      "query": "timeseries processed_position = max(zeebe.stream.processor.last.processed.position),\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition))}",
+      "visualization": "table",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "table": {
+          "rowDensity": "condensed",
+          "enableSparklines": true,
+          "hiddenColumns": [],
+          "linewrapEnabled": false,
+          "monospacedFontEnabled": false
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the last processed position by the stream processor per partition."
+    },
+    "13": {
+      "type": "data",
+      "title": "Last replayed source position",
+      "query": "timeseries source_position = max(zeebe.replay.last.source.position),\n  by: {partition, k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition))}",
+      "visualization": "table",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "table": {
+          "rowDensity": "condensed",
+          "enableSparklines": true,
+          "hiddenColumns": [],
+          "linewrapEnabled": false,
+          "monospacedFontEnabled": false
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the last replayed source position by the stream processor per partition and pod"
+    },
+    "14": {
+      "type": "data",
+      "title": "Number of records not processed",
+      "query": "timeseries {\n    committed_position_a = max(zeebe.log.appender.last.committed.position),\n    processed_position_b = max(zeebe.stream.processor.last.processed.position)\n  },\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition))},\n  union: true\n| fieldsAdd delta = committed_position_a[] - processed_position_b[]\n| fieldsRemove committed_position_a, processed_position_b",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows how many records the stream processor has not processed yet."
+    },
+    "15": {
+      "type": "data",
+      "title": "Last exported position",
+      "query": "timeseries exported_position = max(zeebe.exporter.last.exported.position, filter:{exporter == \"elasticsearch\"}),\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition))}",
+      "visualization": "table",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "table": {
+          "rowDensity": "condensed",
+          "enableSparklines": true,
+          "hiddenColumns": [],
+          "linewrapEnabled": false,
+          "monospacedFontEnabled": false
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the last exported position per partition."
+    },
+    "16": {
+      "type": "data",
+      "title": "Processing Phase",
+      "query": "timeseries processor_state = max(zeebe.stream.processor.state),\n  by: {k8s.pod.name, partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))}",
+      "visualization": "table",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "table": {
+          "rowDensity": "condensed",
+          "enableSparklines": true,
+          "hiddenColumns": [],
+          "linewrapEnabled": false,
+          "monospacedFontEnabled": false
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Displays the processing phase of each node per partition."
+    },
+    "17": {
+      "type": "data",
+      "title": "Exporting Phase",
+      "query": "timeseries exporter_state = max(zeebe.exporter.state),\n  by: {k8s.pod.name, partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))}",
+      "visualization": "table",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "table": {
+          "rowDensity": "condensed",
+          "enableSparklines": true,
+          "hiddenColumns": [],
+          "linewrapEnabled": false,
+          "monospacedFontEnabled": false
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Displays the exporting phase of each node per partition."
+    },
+    "18": {
+      "type": "data",
+      "title": "Banned instances by partition",
+      "query": "timeseries banned_instances = max(zeebe.banned.instances.total),\n  by: {k8s.namespace.name, partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the count of banned process instances per partition."
+    },
+    "19": {
+      "type": "data",
+      "title": "Buffered Messages by partition",
+      "query": "timeseries messages_count = max(zeebe.buffered.messages.count),\n  by: {partition, k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the number of buffered messages per partition."
+    },
+    "20": {
+      "type": "data",
+      "title": "Scheduled command cache size",
+      "query": "timeseries cache_size = max(zeebe.stream.processor.scheduled.command.cache.size),\n  by: {k8s.pod.name, partitionId, intent},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The size of the scheduled command cache, grouped by command intent."
+    },
+    "21": {
+      "type": "markdown",
+      "content": "## Throughput\nProcess instance, job and record volumes."
+    },
+    "22": {
+      "type": "data",
+      "title": "Process Instance Events per second (range = 1m)",
+      "query": "timeseries instance_events_per_sec = sum(zeebe.element.instance.events.total, rate:1s, filter:{type == \"PROCESS\"}),\n  by: {action},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "table",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "table": {
+          "rowDensity": "condensed",
+          "enableSparklines": true,
+          "hiddenColumns": [],
+          "linewrapEnabled": false,
+          "monospacedFontEnabled": false
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      }
+    },
+    "23": {
+      "type": "data",
+      "title": "Job events per second (range = 1m)",
+      "query": "timeseries job_events_per_sec = sum(zeebe.job.events.total, rate:1s),\n  by: {action},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "table",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "table": {
+          "rowDensity": "condensed",
+          "enableSparklines": true,
+          "hiddenColumns": [],
+          "linewrapEnabled": false,
+          "monospacedFontEnabled": false
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      }
+    },
+    "24": {
+      "type": "data",
+      "title": "Process Instance Events",
+      "query": "timeseries {\n    process_instance = sum(zeebe.element.instance.events.total, filter:{type == \"PROCESS\"}),\n    job = sum(zeebe.job.events.total)\n  },\n  by: {action},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))},\n  union: true\n| fieldsAdd process_instance = arrayCumulativeSum(process_instance)\n| fieldsAdd job = arrayCumulativeSum(job)",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Counters arrive from Camunda as OTLP **delta** values (Dynatrace does not ingest cumulative counters), so each column is cumulated over the selected timeframe to reproduce Grafana's monotonic counter view."
+    },
+    "25": {
+      "type": "data",
+      "title": "Process Instance Events per second (range = 1m)",
+      "query": "timeseries {\n    process_instance = sum(zeebe.element.instance.events.total, rate:1s, filter:{type == \"PROCESS\"}),\n    job = sum(zeebe.job.events.total, rate:1s)\n  },\n  by: {action},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      }
+    },
+    "26": {
+      "type": "data",
+      "title": "Processed Commands",
+      "query": "timeseries processor_records_per_sec = sum(zeebe.stream.processor.records.total, rate:1s),\n  by: {action, partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Processed commands by the leading Stream Processor"
+    },
+    "27": {
+      "type": "data",
+      "title": "Exported Records",
+      "query": "timeseries exporter_events_per_sec = sum(zeebe.exporter.events.total, rate:1s),\n  by: {partition, k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Exported Records by the leading Stream Processor"
+    },
+    "28": {
+      "type": "data",
+      "title": "Replayed Events",
+      "query": "timeseries replay_events_per_sec = sum(zeebe.replay.events.total, rate:1s),\n  by: {partition, k8s.pod.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Replayed events by the following Stream Processor"
+    },
+    "29": {
+      "type": "data",
+      "title": "Process instance creation per second",
+      "query": "timeseries executed_instances_per_sec = sum(zeebe.executed.instances.total, rate:1s, filter:{action == \"activated\"}),\n  by: {k8s.namespace.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the process instance creation rate over all partitions in the namespace. It will only count root process instances, so call activity process instance creations are excluded."
+    },
+    "30": {
+      "type": "data",
+      "title": "Process instance completion per second",
+      "query": "timeseries executed_instances_per_sec = sum(zeebe.executed.instances.total, rate:1s, filter:{action == \"completed\"}),\n  by: {k8s.namespace.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the process instance completion rate over all partitions in the namespace. It will only count root process instances, so call activity process instance creations are excluded."
+    },
+    "31": {
+      "type": "data",
+      "title": "Job creation per second",
+      "query": "timeseries job_events_per_sec = sum(zeebe.job.events.total, rate:1s, filter:{action == \"created\"}),\n  by: {k8s.namespace.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the Job creation rate over all partitions in the namespace"
+    },
+    "32": {
+      "type": "data",
+      "title": "Job completion per second",
+      "query": "timeseries job_events_per_sec = sum(zeebe.job.events.total, rate:1s, filter:{action == \"completed\"}),\n  by: {k8s.namespace.name},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the Job completion rate over all partitions in the namespace."
+    },
+    "33": {
+      "type": "markdown",
+      "content": "## Latency\nProcessing, write and commit latency distributions (p50/p90/p99)."
+    },
+    "34": {
+      "type": "data",
+      "title": "Process Instance Execution Time",
+      "query": "timeseries {\n    p50 = percentile(zeebe.process.instance.execution.time, 50),\n    p90 = percentile(zeebe.process.instance.execution.time, 90),\n    p99 = percentile(zeebe.process.instance.execution.time, 99)\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the execution time of a process instance. This means the time (latency) between creating the instance and completing it.\n\nGrafana rendered this as a histogram heatmap; Dynatrace charts the p50/p90/p99 percentiles of the same histogram instead."
+    },
+    "35": {
+      "type": "data",
+      "title": "Process Instance Execution Time (avg)",
+      "query": "timeseries {\n    p50 = percentile(zeebe.process.instance.execution.time, 50),\n    p99 = percentile(zeebe.process.instance.execution.time, 99),\n    p50_3 = percentile(zeebe.process.instance.execution.time, 50),\n    p99_4 = percentile(zeebe.process.instance.execution.time, 99)\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the execution time of a process instance. This means the time (latency) between creating the instance and completing it."
+    },
+    "36": {
+      "type": "data",
+      "title": "Job Activation Time",
+      "query": "timeseries {\n    p50 = percentile(zeebe.job.activation.time, 50),\n    p90 = percentile(zeebe.job.activation.time, 90),\n    p99 = percentile(zeebe.job.activation.time, 99)\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the time (latency) between creating the job and activating it.\n\nGrafana rendered this as a histogram heatmap; Dynatrace charts the p50/p90/p99 percentiles of the same histogram instead."
+    },
+    "37": {
+      "type": "data",
+      "title": "Job Life Time",
+      "query": "timeseries {\n    p50 = percentile(zeebe.job.life.time, 50),\n    p90 = percentile(zeebe.job.life.time, 90),\n    p99 = percentile(zeebe.job.life.time, 99)\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the complete lifetime of an job. This means the time (latency) between creating the job and completing it.\n\nGrafana rendered this as a histogram heatmap; Dynatrace charts the p50/p90/p99 percentiles of the same histogram instead."
+    },
+    "38": {
+      "type": "data",
+      "title": "Overall Processing Latency",
+      "query": "timeseries {\n    p50 = percentile(zeebe.stream.processor.latency, 50),\n    p90 = percentile(zeebe.stream.processor.latency, 90),\n    p99 = percentile(zeebe.stream.processor.latency, 99)\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the time (latency) between writing the command to the dispatcher and processing the record.\n\nGrafana rendered this as a histogram heatmap; Dynatrace charts the p50/p90/p99 percentiles of the same histogram instead."
+    },
+    "39": {
+      "type": "data",
+      "title": "Record Processing Duration",
+      "query": "timeseries {\n    p50 = percentile(zeebe.stream.processor.processing.duration, 50),\n    p90 = percentile(zeebe.stream.processor.processing.duration, 90),\n    p99 = percentile(zeebe.stream.processor.processing.duration, 99)\n  },\n  by: {valueType, intent},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Time taken to process a record"
+    },
+    "40": {
+      "type": "data",
+      "title": "Record Processing Duration",
+      "query": "timeseries {\n    p50 = percentile(zeebe.stream.processor.processing.duration, 50),\n    p90 = percentile(zeebe.stream.processor.processing.duration, 90),\n    p99 = percentile(zeebe.stream.processor.processing.duration, 99)\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Time taken to process a record\n\nGrafana rendered this as a histogram heatmap; Dynatrace charts the p50/p90/p99 percentiles of the same histogram instead."
+    },
+    "41": {
+      "type": "data",
+      "title": "Batch Event Replay Duration",
+      "query": "timeseries {\n    p50 = percentile(zeebe.replay.event.batch.replay.duration, 50),\n    p90 = percentile(zeebe.replay.event.batch.replay.duration, 90),\n    p99 = percentile(zeebe.replay.event.batch.replay.duration, 99)\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Time taken to replay a batch of events\n\nGrafana rendered this as a histogram heatmap; Dynatrace charts the p50/p90/p99 percentiles of the same histogram instead."
+    },
+    "42": {
+      "type": "data",
+      "title": "Post commit task execution duration",
+      "query": "timeseries {\n    p50 = percentile(zeebe.stream.processor.batch.processing.post.commit.tasks, 50),\n    p90 = percentile(zeebe.stream.processor.batch.processing.post.commit.tasks, 90),\n    p99 = percentile(zeebe.stream.processor.batch.processing.post.commit.tasks, 99)\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Time spent executing post-commit tasks after batch processing (in seconds)\n\nGrafana rendered this as a histogram heatmap; Dynatrace charts the p50/p90/p99 percentiles of the same histogram instead."
+    },
+    "43": {
+      "type": "data",
+      "title": "Batch processing duration (in seconds)",
+      "query": "timeseries {\n    p50 = percentile(zeebe.stream.processor.batch.processing.duration, 50),\n    p90 = percentile(zeebe.stream.processor.batch.processing.duration, 90),\n    p99 = percentile(zeebe.stream.processor.batch.processing.duration, 99)\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Time spent in processing a batch of commands (excluding transaction commit, side effects, etc.)\n\nGrafana rendered this as a histogram heatmap; Dynatrace charts the p50/p90/p99 percentiles of the same histogram instead."
+    },
+    "44": {
+      "type": "data",
+      "title": "Commit Latency Quantiles",
+      "query": "timeseries {\n    p90 = percentile(zeebe.log.appender.commit.latency, 90),\n    p99 = percentile(zeebe.log.appender.commit.latency, 99),\n    p50 = percentile(zeebe.log.appender.commit.latency, 50),\n    mean = avg(zeebe.log.appender.commit.latency)\n  },\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the quantiles of: time taken to commit a record to the log (includes write latency)"
+    },
+    "45": {
+      "type": "data",
+      "title": "Record Write Quantiles",
+      "query": "timeseries {\n    p90 = percentile(zeebe.log.appender.append.latency, 90),\n    p99 = percentile(zeebe.log.appender.append.latency, 99),\n    p50 = percentile(zeebe.log.appender.append.latency, 50),\n    mean = avg(zeebe.log.appender.append.latency)\n  },\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Shows the quantiles of: time taken to append a record to the log"
+    },
+    "46": {
+      "type": "data",
+      "title": "Commit latency",
+      "query": "timeseries {\n    p50 = percentile(zeebe.log.appender.commit.latency, 50),\n    p90 = percentile(zeebe.log.appender.commit.latency, 90),\n    p99 = percentile(zeebe.log.appender.commit.latency, 99)\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Time taken to commit a record to the log (includes write latency)\n\nGrafana rendered this as a histogram heatmap; Dynatrace charts the p50/p90/p99 percentiles of the same histogram instead."
+    },
+    "47": {
+      "type": "data",
+      "title": "Record write latency",
+      "query": "timeseries {\n    p50 = percentile(zeebe.log.appender.append.latency, 50),\n    p90 = percentile(zeebe.log.appender.append.latency, 90),\n    p99 = percentile(zeebe.log.appender.append.latency, 99)\n  },\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition)) and in(k8s.pod.name, array($Pod))},\n  union: true",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Time taken to append a record to the log\n\nGrafana rendered this as a histogram heatmap; Dynatrace charts the p50/p90/p99 percentiles of the same histogram instead."
+    },
+    "48": {
+      "type": "markdown",
+      "content": "## Backpressure\nRequest admission control on the brokers."
+    },
+    "49": {
+      "type": "data",
+      "title": "In flight Requests",
+      "query": "timeseries requests_count = sum(zeebe.backpressure.inflight.requests.count),\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Current number of request inflight per partition."
+    },
+    "50": {
+      "type": "data",
+      "title": "Total Dropped Requests",
+      "query": "timeseries request_count_per_sec = sum(zeebe.dropped.request.count.total, rate:1s),\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(partition, array($Partition))}",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "The rate of requests dropped due to backpressure per partition."
+    },
+    "51": {
+      "type": "data",
+      "title": "Backpressure Requests Limit",
+      "query": "timeseries requests_limit = sum(zeebe.backpressure.requests.limit),\n  by: {partition},\n  filter: {in(k8s.namespace.name, array($Namespace)) and in(k8s.pod.name, array($Pod)) and in(partition, array($Partition))}\n| filter arrayMax(requests_limit) > 0",
+      "visualization": "lineChart",
+      "visualizationSettings": {
+        "autoSelectVisualization": false,
+        "chartSettings": {
+          "xAxisScaling": "analyzedTimeframe",
+          "gapPolicy": "gap",
+          "legend": {
+            "hidden": false
+          },
+          "hiddenLegendFields": [
+            "interval",
+            "timeframe"
+          ],
+          "truncationMode": "middle"
+        },
+        "legend": {
+          "showLegend": true,
+          "position": "auto",
+          "ratio": 10
+        }
+      },
+      "querySettings": {
+        "maxResultRecords": 1000,
+        "defaultScanLimitGbytes": 500,
+        "maxResultMegaBytes": 1,
+        "defaultSamplingRatio": 10,
+        "enableSampling": false
+      },
+      "description": "Current limit for number of inflight requests per partition.\n\nPorted from Grafana: Grafana restricted this to Raft leaders with `and on(...) (atomix_role == 3)`. DQL has no cross-metric join filter, so all pods are included and all-zero series (followers, which report no limit) are filtered out instead."
+    }
+  },
+  "layouts": {
+    "1": {
+      "x": 0,
+      "y": 0,
+      "w": 24,
+      "h": 4
+    },
+    "2": {
+      "x": 0,
+      "y": 4,
+      "w": 24,
+      "h": 2
+    },
+    "3": {
+      "x": 0,
+      "y": 6,
+      "w": 24,
+      "h": 7
+    },
+    "4": {
+      "x": 0,
+      "y": 13,
+      "w": 12,
+      "h": 8
+    },
+    "5": {
+      "x": 12,
+      "y": 13,
+      "w": 12,
+      "h": 8
+    },
+    "6": {
+      "x": 0,
+      "y": 21,
+      "w": 12,
+      "h": 8
+    },
+    "7": {
+      "x": 12,
+      "y": 21,
+      "w": 12,
+      "h": 8
+    },
+    "8": {
+      "x": 0,
+      "y": 29,
+      "w": 5,
+      "h": 6
+    },
+    "9": {
+      "x": 5,
+      "y": 29,
+      "w": 7,
+      "h": 6
+    },
+    "10": {
+      "x": 12,
+      "y": 29,
+      "w": 7,
+      "h": 4
+    },
+    "11": {
+      "x": 19,
+      "y": 29,
+      "w": 5,
+      "h": 4
+    },
+    "12": {
+      "x": 0,
+      "y": 35,
+      "w": 5,
+      "h": 8
+    },
+    "13": {
+      "x": 5,
+      "y": 35,
+      "w": 7,
+      "h": 8
+    },
+    "14": {
+      "x": 12,
+      "y": 35,
+      "w": 5,
+      "h": 6
+    },
+    "15": {
+      "x": 17,
+      "y": 35,
+      "w": 7,
+      "h": 6
+    },
+    "16": {
+      "x": 0,
+      "y": 43,
+      "w": 12,
+      "h": 6
+    },
+    "17": {
+      "x": 12,
+      "y": 43,
+      "w": 12,
+      "h": 6
+    },
+    "18": {
+      "x": 0,
+      "y": 49,
+      "w": 24,
+      "h": 6
+    },
+    "19": {
+      "x": 0,
+      "y": 55,
+      "w": 12,
+      "h": 8
+    },
+    "20": {
+      "x": 12,
+      "y": 55,
+      "w": 12,
+      "h": 8
+    },
+    "21": {
+      "x": 0,
+      "y": 63,
+      "w": 24,
+      "h": 2
+    },
+    "22": {
+      "x": 0,
+      "y": 65,
+      "w": 12,
+      "h": 5
+    },
+    "23": {
+      "x": 12,
+      "y": 65,
+      "w": 12,
+      "h": 5
+    },
+    "24": {
+      "x": 0,
+      "y": 70,
+      "w": 12,
+      "h": 6
+    },
+    "25": {
+      "x": 12,
+      "y": 70,
+      "w": 12,
+      "h": 6
+    },
+    "26": {
+      "x": 0,
+      "y": 76,
+      "w": 9,
+      "h": 6
+    },
+    "27": {
+      "x": 9,
+      "y": 76,
+      "w": 7,
+      "h": 6
+    },
+    "28": {
+      "x": 16,
+      "y": 76,
+      "w": 8,
+      "h": 6
+    },
+    "29": {
+      "x": 0,
+      "y": 82,
+      "w": 6,
+      "h": 8
+    },
+    "30": {
+      "x": 6,
+      "y": 82,
+      "w": 6,
+      "h": 8
+    },
+    "31": {
+      "x": 12,
+      "y": 82,
+      "w": 6,
+      "h": 8
+    },
+    "32": {
+      "x": 18,
+      "y": 82,
+      "w": 6,
+      "h": 8
+    },
+    "33": {
+      "x": 0,
+      "y": 90,
+      "w": 24,
+      "h": 2
+    },
+    "34": {
+      "x": 0,
+      "y": 92,
+      "w": 12,
+      "h": 8
+    },
+    "35": {
+      "x": 12,
+      "y": 92,
+      "w": 12,
+      "h": 8
+    },
+    "36": {
+      "x": 0,
+      "y": 100,
+      "w": 12,
+      "h": 8
+    },
+    "37": {
+      "x": 12,
+      "y": 100,
+      "w": 12,
+      "h": 8
+    },
+    "38": {
+      "x": 0,
+      "y": 108,
+      "w": 24,
+      "h": 7
+    },
+    "39": {
+      "x": 0,
+      "y": 115,
+      "w": 24,
+      "h": 10
+    },
+    "40": {
+      "x": 0,
+      "y": 125,
+      "w": 12,
+      "h": 7
+    },
+    "41": {
+      "x": 12,
+      "y": 125,
+      "w": 12,
+      "h": 7
+    },
+    "42": {
+      "x": 0,
+      "y": 132,
+      "w": 12,
+      "h": 7
+    },
+    "43": {
+      "x": 12,
+      "y": 132,
+      "w": 12,
+      "h": 7
+    },
+    "44": {
+      "x": 0,
+      "y": 139,
+      "w": 12,
+      "h": 7
+    },
+    "45": {
+      "x": 12,
+      "y": 139,
+      "w": 12,
+      "h": 7
+    },
+    "46": {
+      "x": 0,
+      "y": 146,
+      "w": 12,
+      "h": 7
+    },
+    "47": {
+      "x": 12,
+      "y": 146,
+      "w": 12,
+      "h": 7
+    },
+    "48": {
+      "x": 0,
+      "y": 153,
+      "w": 24,
+      "h": 2
+    },
+    "49": {
+      "x": 0,
+      "y": 155,
+      "w": 8,
+      "h": 6
+    },
+    "50": {
+      "x": 8,
+      "y": 155,
+      "w": 8,
+      "h": 6
+    },
+    "51": {
+      "x": 16,
+      "y": 155,
+      "w": 8,
+      "h": 6
+    }
+  },
+  "settings": {
+    "defaultTimeframe": {
+      "value": {
+        "from": "now()-15m",
+        "to": "now()"
+      },
+      "enabled": true
+    },
+    "defaultSegments": {
+      "value": [],
+      "enabled": false
+    }
+  },
+  "annotations": []
+}

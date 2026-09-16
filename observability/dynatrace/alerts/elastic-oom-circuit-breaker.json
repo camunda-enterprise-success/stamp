@@ -1,0 +1,36 @@
+{
+  "schemaId": "builtin:anomaly-detection.metric-events",
+  "schemaVersion": "1.0.15",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "summary": "[Camunda Infrastructure] ElasticOOMCircuitBreaker",
+    "queryDefinition": {
+      "type": "METRIC_SELECTOR",
+      "metricSelector": "elasticsearch_breakers_tripped:splitBy(\"k8s.namespace.name\"):rate(10m)",
+      "managementZone": null,
+      "queryOffset": null
+    },
+    "modelProperties": {
+      "type": "STATIC_THRESHOLD",
+      "threshold": 0.5,
+      "alertOnNoData": false,
+      "alertCondition": "ABOVE",
+      "violatingSamples": 30,
+      "samples": 30,
+      "dealertingSamples": 5
+    },
+    "eventTemplate": {
+      "title": "[Camunda Infrastructure] ElasticOOMCircuitBreaker",
+      "description": "Elasticsearch's OutOfMemory-prevention circuit breaker is tripping at > 0.5 trips/s for 30 minutes in namespace {dims} — applications might not be functioning correctly (generation updates not completing, inconsistent data, importer lagging behind). This is an early-warning signal; other issues on the cluster may show up hours or days later — investigate if it triggers.\n\nUses the underscored Prometheus spelling — same collector-scrape reasoning as elastic-high-shards.json.",
+      "eventType": "RESOURCE",
+      "davisMerge": true,
+      "metadata": [
+        { "metadataKey": "team", "metadataValue": "data-layer" },
+        { "metadataKey": "source_rule", "metadataValue": "prometheus-grafana/prometheus-alerts/elasticsearch.yaml#ElasticOOMCircuitBreaker" }
+      ]
+    },
+    "eventEntityDimensionKey": null,
+    "legacyId": null
+  }
+}

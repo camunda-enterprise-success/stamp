@@ -1,0 +1,36 @@
+{
+  "schemaId": "builtin:anomaly-detection.metric-events",
+  "schemaVersion": "1.0.15",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "summary": "[Camunda Application] ConnectorsLogsErrorsDetected",
+    "queryDefinition": {
+      "type": "METRIC_SELECTOR",
+      "metricSelector": "logback.events.total:filter(and(eq(\"level\",\"error\"),ne(\"logger\",\"io.camunda.connector.runtime.core.outbound.ConnectorJobHandler\"))):splitBy(\"k8s.namespace.name\"):rate(1m)",
+      "managementZone": null,
+      "queryOffset": null
+    },
+    "modelProperties": {
+      "type": "STATIC_THRESHOLD",
+      "threshold": 0,
+      "alertOnNoData": false,
+      "alertCondition": "ABOVE",
+      "violatingSamples": 20,
+      "samples": 20,
+      "dealertingSamples": 5
+    },
+    "eventTemplate": {
+      "title": "[Camunda Application] ConnectorsLogsErrorsDetected",
+      "description": "Connectors service is logging errors for 20 minutes (ConnectorJobHandler excluded) in namespace {dims}.\n\nThe source rule also filters job=\"connectors-service\" — that's a Prometheus scrape-target label, not a metric dimension, so it has no equivalent on the native OTLP push path; this relies on logback.events.total only being emitted by the Connectors runtime in your tenant. If several services share this metric, add a filter on service.name (or another resource attribute) to scope it.\n\nAssumes the Connectors runtime pushes OTLP the same way Zeebe does — same caveat as connectors-queue-overflow.json. If collector-scraped instead, use the underscored key `logback_events_total`.\n\nIMPORTANT: the logger dimension exclusion only works if Advanced OTLP metric dimensions is enabled (otherwise dimension keys are lowercased and this filter won't match) — see dynatrace/runbook-dynatrace.md step 2.",
+      "eventType": "ERROR",
+      "davisMerge": true,
+      "metadata": [
+        { "metadataKey": "team", "metadataValue": "connectors" },
+        { "metadataKey": "source_rule", "metadataValue": "prometheus-grafana/prometheus-alerts/connectors.yaml#ConnectorsLogsErrorsDetected" }
+      ]
+    },
+    "eventEntityDimensionKey": null,
+    "legacyId": null
+  }
+}

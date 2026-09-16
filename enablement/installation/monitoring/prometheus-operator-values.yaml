@@ -1,3 +1,14 @@
+# Values for the `kube-prometheus-stack` chart (prometheus-community) - NOT for camunda-platform.
+#
+# The monitoring stack is an external dependency: the camunda-platform chart never deploys or owns
+# Prometheus/Grafana, it only exposes a scrape target (see with_monitoring_alerting.yaml, "Layer 3").
+# In a real deployment this would be a hosted observability stack and this file would go away -
+# only the scrape target stays. See README.md#why-operators--and-what-else-you-could-use.
+#
+# Installed into the `default` namespace by step 1 of either guide. Alertmanager is off (alerts are
+# Grafana-managed, see camunda-alerts-grafana-managed.yaml); Grafana's admin credentials come from
+# the `grafana-secret` Secret built from grafana-secret.yaml.template.
+
 alertmanager:
   enabled: false
 

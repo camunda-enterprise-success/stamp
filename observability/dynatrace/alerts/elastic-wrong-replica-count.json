@@ -1,0 +1,36 @@
+{
+  "schemaId": "builtin:anomaly-detection.metric-events",
+  "schemaVersion": "1.0.15",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "summary": "[Camunda Infrastructure] ElasticWrongReplicaCount",
+    "queryDefinition": {
+      "type": "METRIC_SELECTOR",
+      "metricSelector": "elasticsearch_indices_settings_replicas:splitBy(\"k8s.namespace.name\",\"index\"):avg",
+      "managementZone": null,
+      "queryOffset": null
+    },
+    "modelProperties": {
+      "type": "STATIC_THRESHOLD",
+      "threshold": 1,
+      "alertOnNoData": false,
+      "alertCondition": "BELOW",
+      "violatingSamples": 1440,
+      "samples": 1440,
+      "dealertingSamples": 5
+    },
+    "eventTemplate": {
+      "title": "[Camunda Infrastructure] ElasticWrongReplicaCount",
+      "description": "Elasticsearch index {dims} has had zero replicas for more than 1 day — data loss risk on node failure.\n\nCaveats: (1) uses the underscored Prometheus spelling — same collector-scrape reasoning as elastic-high-shards.json. (2) drops the source rule's requirement that the cluster have more than 1 data node (excluding intentional single-node dev clusters) — a cross-metric join a STATIC_THRESHOLD metric event can't express, same simplification datadog_alerts/ made; scope this to multi-node clusters via a management zone or segment if you have single-node dev clusters in the same tenant. (3) a 1-day `for:` window means 1440 one-minute samples — see elastic-ilm-stopped.json's note on long windows.",
+      "eventType": "RESOURCE",
+      "davisMerge": true,
+      "metadata": [
+        { "metadataKey": "team", "metadataValue": "data-layer" },
+        { "metadataKey": "source_rule", "metadataValue": "prometheus-grafana/prometheus-alerts/elasticsearch.yaml#ElasticWrongReplicaCount" }
+      ]
+    },
+    "eventEntityDimensionKey": null,
+    "legacyId": null
+  }
+}

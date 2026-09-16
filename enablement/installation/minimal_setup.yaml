@@ -4,7 +4,7 @@
 # basic auth. Every other values file in this directory (with_permissions.yaml,
 # with_monitoring_alerting.yaml, values_with_backup_restore.yml) is an additive layer applied on
 # top of this one via extra `-f` flags - none of them make sense without this file, but this
-# file needs none of them. See the README's "Design Intent" section.
+# file needs none of them. See the README's "Design intent" section.
 #
 # Note that secondary storage (PostgreSQL) is an external dependency even at this base layer -
 # this file only ever points at it (orchestration.data.secondaryStorage.rdbms.url), it never

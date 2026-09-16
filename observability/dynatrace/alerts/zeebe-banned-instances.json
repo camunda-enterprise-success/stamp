@@ -1,0 +1,36 @@
+{
+  "schemaId": "builtin:anomaly-detection.metric-events",
+  "schemaVersion": "1.0.15",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "summary": "[Camunda Platform] ZeebeBannedInstances",
+    "queryDefinition": {
+      "type": "METRIC_SELECTOR",
+      "metricSelector": "zeebe.banned.instances.total:splitBy(\"k8s.namespace.name\"):max",
+      "managementZone": null,
+      "queryOffset": null
+    },
+    "modelProperties": {
+      "type": "STATIC_THRESHOLD",
+      "threshold": 0,
+      "alertOnNoData": false,
+      "alertCondition": "ABOVE",
+      "violatingSamples": 1,
+      "samples": 1,
+      "dealertingSamples": 1
+    },
+    "eventTemplate": {
+      "title": "[Camunda Platform] ZeebeBannedInstances",
+      "description": "Zeebe has banned a process instance due to a processing error, in namespace {dims}. Immediate investigation required.\n\nSource rule ORs zeebe_banned_instances_total with the legacy zeebe_blacklisted_instances_total, and datadog_alerts/ mirrors that as three files (two components + a composite) because Datadog can't OR two distinct metric queries in one monitor. That legacy metric is pre-Micrometer and does not exist in Camunda 8.7's native OTLP push (see metric-mapping-8.7.md), so this is a single alert on zeebe.banned.instances.total only.\n\nRunbook: https://github.com/camunda/runbook/blob/main/zeebe/troubleshooting-guide.md",
+      "eventType": "CUSTOM_ALERT",
+      "davisMerge": true,
+      "metadata": [
+        { "metadataKey": "team", "metadataValue": "zeebe" },
+        { "metadataKey": "source_rule", "metadataValue": "prometheus-grafana/prometheus-alerts/zeebe-behaviors.yaml#ZeebeBannedInstances" }
+      ]
+    },
+    "eventEntityDimensionKey": null,
+    "legacyId": null
+  }
+}

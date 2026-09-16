@@ -1,0 +1,36 @@
+{
+  "schemaId": "builtin:anomaly-detection.metric-events",
+  "schemaVersion": "1.0.15",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "summary": "[Camunda Infrastructure] ElasticIlmStopped",
+    "queryDefinition": {
+      "type": "METRIC_SELECTOR",
+      "metricSelector": "elasticsearch_ilm_status:filter(eq(\"operation_mode\",\"STOPPED\")):splitBy(\"k8s.namespace.name\"):avg",
+      "managementZone": null,
+      "queryOffset": null
+    },
+    "modelProperties": {
+      "type": "STATIC_THRESHOLD",
+      "threshold": 0,
+      "alertOnNoData": false,
+      "alertCondition": "ABOVE",
+      "violatingSamples": 1440,
+      "samples": 1440,
+      "dealertingSamples": 5
+    },
+    "eventTemplate": {
+      "title": "[Camunda Infrastructure] ElasticIlmStopped",
+      "description": "Elasticsearch ILM (Index Lifecycle Management) has been STOPPED for more than 1 day in namespace {dims} — can lead to reaching the maximum shard count or the cluster running out of disk space.\n\nCaveats: (1) uses the underscored Prometheus spelling — same collector-scrape reasoning as elastic-high-shards.json. (2) drops the source rule's exclusion of ES 7.x clusters (a cross-metric join with elasticsearch_clusterinfo_version_info), same simplification datadog_alerts/ made. (3) a 1-day `for:` window means 1440 one-minute samples — verify your tenant doesn't cap the practical sample count; a scheduled Workflow evaluating a DQL query is the more common way Dynatrace users handle day-scale conditions.",
+      "eventType": "RESOURCE",
+      "davisMerge": true,
+      "metadata": [
+        { "metadataKey": "team", "metadataValue": "data-layer" },
+        { "metadataKey": "source_rule", "metadataValue": "prometheus-grafana/prometheus-alerts/elasticsearch.yaml#ElasticIlmStopped" }
+      ]
+    },
+    "eventEntityDimensionKey": null,
+    "legacyId": null
+  }
+}

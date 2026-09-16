@@ -1,0 +1,36 @@
+{
+  "schemaId": "builtin:anomaly-detection.metric-events",
+  "schemaVersion": "1.0.15",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "summary": "[Camunda Application] ZeebeSLORequestFailureRate",
+    "queryDefinition": {
+      "type": "METRIC_SELECTOR",
+      "metricSelector": "(zeebe.gateway.failed.requests:filter(ne(\"requestType\",\"CreateProcessInstanceWithResult\")):splitBy(\"k8s.namespace.name\"):rate(1m))/(zeebe.gateway.total.requests:filter(ne(\"requestType\",\"CreateProcessInstanceWithResult\")):splitBy(\"k8s.namespace.name\"):rate(1m))",
+      "managementZone": null,
+      "queryOffset": null
+    },
+    "modelProperties": {
+      "type": "STATIC_THRESHOLD",
+      "threshold": 0.005,
+      "alertOnNoData": false,
+      "alertCondition": "ABOVE",
+      "violatingSamples": 1,
+      "samples": 1,
+      "dealertingSamples": 1
+    },
+    "eventTemplate": {
+      "title": "[Camunda Application] ZeebeSLORequestFailureRate",
+      "description": "gRPC-equivalent gateway failure rate > 0.5% in namespace {dims} — Zeebe's 99.5% availability SLO is breached.\n\nIMPORTANT SUBSTITUTION: the source rule computes this from grpc_server_handled_total filtered to code=DEADLINE_EXCEEDED|UNAVAILABLE. That metric is pre-Micrometer and does not exist on Camunda 8.7's native OTLP push — metric-mapping-8.7.md only carries the histogram grpc.server.processing.duration forward, and Grail can't read a histogram's observation count (the same reason three gRPC dashboard panels were rewritten/dropped). This alert instead uses zeebe.gateway.failed.requests / zeebe.gateway.total.requests, a gateway-wide failure ratio rather than one scoped to those two specific gRPC status codes. Verify the requestType dimension name/values in your tenant before trusting the CreateProcessInstanceWithResult exclusion.",
+      "eventType": "ERROR",
+      "davisMerge": true,
+      "metadata": [
+        { "metadataKey": "team", "metadataValue": "zeebe" },
+        { "metadataKey": "source_rule", "metadataValue": "prometheus-grafana/prometheus-alerts/slo-request-failure-rate.yaml#ZeebeSLORequestFailureRate" }
+      ]
+    },
+    "eventEntityDimensionKey": null,
+    "legacyId": null
+  }
+}

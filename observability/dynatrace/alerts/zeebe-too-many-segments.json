@@ -1,0 +1,36 @@
+{
+  "schemaId": "builtin:anomaly-detection.metric-events",
+  "schemaVersion": "1.0.15",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "summary": "[Camunda Platform] ZeebeTooManySegments",
+    "queryDefinition": {
+      "type": "METRIC_SELECTOR",
+      "metricSelector": "atomix.segment.count:splitBy(\"k8s.namespace.name\",\"partition\"):max",
+      "managementZone": null,
+      "queryOffset": null
+    },
+    "modelProperties": {
+      "type": "STATIC_THRESHOLD",
+      "threshold": 100,
+      "alertOnNoData": false,
+      "alertCondition": "ABOVE",
+      "violatingSamples": 60,
+      "samples": 60,
+      "dealertingSamples": 5
+    },
+    "eventTemplate": {
+      "title": "[Camunda Platform] ZeebeTooManySegments",
+      "description": "Zeebe has accumulated more than 100 log segments on partition {dims} for over an hour — may cause performance and availability issues, and is a sign of an unhealthy cluster.\n\nCaveat: atomix_segment_count is not in metric-mapping-8.7.md's verified table (that mapping only covers the Grafana dashboard's metrics). atomix.segment.count is inferred by the same underscore->dot rule confirmed for every other atomix_* gauge in that table — verify it exists in your tenant (`load \"/dt/platform/metrics.metadata\" | filter matchesValue(metric.key, \"atomix.segment*\")`) before relying on it.",
+      "eventType": "RESOURCE",
+      "davisMerge": true,
+      "metadata": [
+        { "metadataKey": "team", "metadataValue": "zeebe" },
+        { "metadataKey": "source_rule", "metadataValue": "prometheus-grafana/prometheus-alerts/zeebe-behaviors.yaml#ZeebeTooManySegments" }
+      ]
+    },
+    "eventEntityDimensionKey": null,
+    "legacyId": null
+  }
+}

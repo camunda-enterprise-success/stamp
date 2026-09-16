@@ -1,0 +1,36 @@
+{
+  "schemaId": "builtin:anomaly-detection.metric-events",
+  "schemaVersion": "1.0.15",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "summary": "[Camunda Platform] ArchiverBacklogGrowing",
+    "queryDefinition": {
+      "type": "METRIC_SELECTOR",
+      "metricSelector": "zeebe.camunda.exporter.process.instances.awaiting.archival:splitBy(\"k8s.namespace.name\",\"partition\"):sum",
+      "managementZone": null,
+      "queryOffset": null
+    },
+    "modelProperties": {
+      "type": "STATIC_THRESHOLD",
+      "threshold": 0,
+      "alertOnNoData": false,
+      "alertCondition": "ABOVE",
+      "violatingSamples": 120,
+      "samples": 120,
+      "dealertingSamples": 5
+    },
+    "eventTemplate": {
+      "title": "[Camunda Platform] ArchiverBacklogGrowing",
+      "description": "Archiver backlog has been non-zero for 2 hours on partition {dims} — potential archival bottleneck.\n\nThe source rule also required the backlog to not be shrinking (delta over the last 10m >= 0); a STATIC_THRESHOLD metric event can't express that trend check, so this fires on \"backlog > 0 for 2h\" alone, same simplification as datadog_alerts/ made — verify archival is actually stuck (not just slow) before acting.\n\nCaveat: zeebe_camunda_exporter_process_instances_awaiting_archival is not in metric-mapping-8.7.md's verified table (out of scope for that dashboard-focused exercise). The dotted key is inferred by the same convention used for every other zeebe_* gauge/counter in that table — verify it exists in your tenant before relying on it.",
+      "eventType": "RESOURCE",
+      "davisMerge": true,
+      "metadata": [
+        { "metadataKey": "team", "metadataValue": "data-layer" },
+        { "metadataKey": "source_rule", "metadataValue": "prometheus-grafana/prometheus-alerts/archiver.yaml#ArchiverBacklogGrowing" }
+      ]
+    },
+    "eventEntityDimensionKey": null,
+    "legacyId": null
+  }
+}

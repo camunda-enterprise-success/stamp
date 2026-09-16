@@ -1,0 +1,93 @@
+# Restores the Elasticsearch snapshots (Operate/Tasklist history + Optimize) for a given backupId
+# from both MinIO-backed repositories. This is the secondary-storage half of a restore; the Zeebe
+# runtime (primary storage) half is done separately via ../../values_to_restore_oc_elasticsearch.yml.
+# See ENABLEMENT_INSTALLATION_ELASTICSEARCH.MD's Restore section for the full ordered procedure.
+#
+# Prerequisites (all in the restore procedure):
+#   - Zeebe scaled to 0 (no new writes to the indices)
+#   - the target indices deleted (../delete-camunda-indices-job.yaml)
+#   - the repositories re-registered (../register-snapshot-job.yaml) - registration is cluster
+#     metadata and does not survive an index/namespace reset
+#
+# BACKUP_ID comes from the same camunda-backup-config ConfigMap the backup used, so the restored
+# history/optimize snapshots match the runtime backup restored on the Camunda side.
+#
+# Runs in "camunda" and authenticates as the "elastic" superuser (password from the
+# elasticsearch-es-elastic-user Secret copied in by ../../elasticsearch/copy-elastic-secret.sh).
+#
+#   kubectl apply -f ./backup_elasticsearch/restore/es-snapshot-restore-job.yaml   (from installation/)
+#   kubectl wait --for=condition=complete --timeout=1800s job/camunda-es-snapshot-restore -n camunda
+#   kubectl logs -f job/camunda-es-snapshot-restore -n camunda
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: camunda-es-snapshot-restore
+  namespace: camunda
+  labels:
+    type: camunda-backup-restore
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: es-snapshot-restore
+          image: curlimages/curl:latest
+          envFrom:
+            - configMapRef:
+                name: camunda-backup-config
+          env:
+            - name: ELASTIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: elasticsearch-es-elastic-user
+                  key: elastic
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              ES="http://elasticsearch-es-http.elasticsearch.svc.cluster.local:9200"
+
+              echo "========================================="
+              echo "Elasticsearch snapshot restore, backupId=$BACKUP_ID"
+              echo "========================================="
+
+              restore_repo() {
+                REPO=$1
+                echo ""
+                echo "----- repository: $REPO -----"
+                SNAPS=$(curl -s -u "elastic:$ELASTIC_PASSWORD" "$ES/_snapshot/$REPO/_all")
+                MATCHING=$(echo "$SNAPS" | grep -o "\"snapshot\":\"[^\"]*$BACKUP_ID[^\"]*\"" | cut -d':' -f2 | tr -d '"')
+                if [ -z "$MATCHING" ]; then
+                  echo "  no snapshots matching backupId=$BACKUP_ID in $REPO"
+                  return 0
+                fi
+                echo "  snapshots to restore:"
+                echo "$MATCHING" | sed 's/^/    /'
+                echo "$MATCHING" | while read -r SNAP; do
+                  [ -z "$SNAP" ] && continue
+                  echo "  restoring $SNAP ..."
+                  RESP=$(curl -s -u "elastic:$ELASTIC_PASSWORD" \
+                    -X POST "$ES/_snapshot/$REPO/$SNAP/_restore?wait_for_completion=true" \
+                    -H 'Content-Type: application/json' \
+                    -d '{"include_global_state": false, "include_aliases": true}')
+                  if echo "$RESP" | grep -q '"failed":0'; then
+                    echo "    -> OK"
+                  else
+                    echo "    response: $RESP"
+                  fi
+                done
+                echo "  -> done with $REPO"
+              }
+
+              restore_repo "camunda-backups-webapps"
+              restore_repo "camunda-backups-optimize"
+
+              echo ""
+              echo "Restored indices:"
+              curl -s -u "elastic:$ELASTIC_PASSWORD" "$ES/_cat/indices/camunda-*,operate-*,tasklist-*,optimize-*?v"
+              echo ""
+              echo "========================================="
+              echo "Elasticsearch restore complete for backupId=$BACKUP_ID"
+              echo "========================================="

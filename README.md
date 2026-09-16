@@ -39,8 +39,10 @@ stamp/
 │   ├── prometheus-grafana/
 │   │   ├── prometheus-grafana-values.yaml  # kube-prometheus-stack values
 │   │   └── prometheus-grafana-runbook.md   # Setup and wiring guide
-│   ├── !!!-dynatrace/                      # 🚧 Dynatrace integration
-│   └── cloudwatch/                         # CloudWatch integration
+│   ├── dynatrace/                          # ✅ Zeebe 8.7 dashboards + OTLP ingest
+│   ├── cloudwatch/                         # CloudWatch integration
+│   ├── datadog_alerts/                     # Datadog monitor definitions
+│   └── grafana_original_baseline/           # Camunda-published Grafana dashboards
 │
 ├── job-worker/                           # Sample job worker for process instance creation
 │
@@ -164,6 +166,44 @@ See [`prometheus-grafana-runbook.md`](observability/prometheus-grafana/prometheu
 
 **Not included:** Alertmanager (disabled by default — enable when the customer is ready for alerting).
 
+### Vendor integrations
+
+The Camunda-published Grafana dashboards in `observability/grafana_original_baseline/` are the
+baseline every vendor port is derived from.
+
+| Vendor | Assets | Runbook |
+| --- | --- | --- |
+| Dynatrace | 5 Zeebe 8.7 dashboards (`8.7-zeebe-0*.json`), Camunda OTLP values, optional collector gateway, metric mapping | [`runbook-dynatrace.md`](observability/dynatrace/runbook-dynatrace.md) |
+| Datadog | 20 monitor definitions (`datadog_alerts/*.json`) | — |
+| CloudWatch | ADOT collector + Fluent Bit setup, recommended alarms | [`runbook-cloudwatch.md`](observability/cloudwatch/runbook-cloudwatch.md) |
+
+### Dynatrace (`observability/dynatrace/`)
+
+Dynatrace Platform Dashboards (Dashboards app, document version 21 — needs Dynatrace **1.344+**)
+covering 203 of the 211 panels of the 8.7 Zeebe Grafana dashboard, split into five files because
+Dynatrace dashboards have no collapsible rows.
+
+Metrics are pushed **straight from Camunda over OTLP** — no Prometheus scrape — so the Grail
+metric keys are the dotted Micrometer meter names (`zeebe.stream.processor.records.total`):
+
+```yaml
+# excerpt from observability/dynatrace/camunda-otlp-values.yaml
+- name: MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED
+  value: "true"
+- name: MANAGEMENT_OTLP_METRICS_EXPORT_AGGREGATIONTEMPORALITY
+  value: "DELTA"        # Dynatrace drops cumulative counters and histograms
+- name: MANAGEMENT_OTLP_METRICS_EXPORT_BASETIMEUNIT
+  value: "SECONDS"      # Spring Boot's OTLP registry defaults to milliseconds
+```
+
+Import via **Dashboards → Upload**. Before that, confirm which ingest path the tenant is on and
+that histograms arrived as histograms — the runbook's step 1 has the discovery query. Every
+translation that changed a panel's meaning is recorded on the tile itself and in
+[`metric-mapping-8.7.md`](observability/dynatrace/dashboards/metric-mapping-8.7.md).
+
+**Not included:** Davis metric events / alerting, an 8.8 port, and dashboards for
+Operate, Tasklist, Optimize or Connectors.
+
 ---
 
 ## Backups
@@ -203,6 +243,10 @@ Planned providers:
 ## Enablement
 
 `enablement/` contains TAM training content and onboarding materials for getting customers and internal teams up to speed on Camunda 8 deployments.
+
+- [`enablement/installation/`](enablement/installation/README.md) — full Camunda 8.9 installation walkthroughs on a local cluster (monitoring, OIDC, backup/restore), in two tracks: [RDBMS](enablement/installation/ENABLEMENT_INSTALLATION_RDBMS.MD) or [Elasticsearch + Optimize/Identity/Web Modeler](enablement/installation/ENABLEMENT_INSTALLATION_ELASTICSEARCH.MD)
+- [`enablement/upgrades/`](enablement/upgrades/ENABLEMENT_UPGRADES_README.MD) — Helm upgrade exercises, 8.6 → 8.9
+- [`enablement/benchmarking/`](enablement/benchmarking/BENCHMARK_README.MD) — load-generation and benchmarking exercises
 
 ---
 

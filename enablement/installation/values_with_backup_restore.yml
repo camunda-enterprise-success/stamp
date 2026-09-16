@@ -1,6 +1,6 @@
 # Layer 4 (+backup), the last additive layer in this guide - on top of minimal_setup.yaml (+
-# with_permissions.yaml + with_monitoring_alerting.yaml). See the README's "Design Intent"
-# section and the Architecture Overview table.
+# with_permissions.yaml + with_monitoring_alerting.yaml). See the README's "Design intent"
+# section and ENABLEMENT_INSTALLATION_RDBMS.MD's component table.
 #
 # Zeebe primary-storage (runtime) backup layer - the "primary storage" half of the RDBMS
 # backup model, writing into the local MinIO object store (backup/minio.yaml), bucket
@@ -18,7 +18,7 @@
 # by a fixed offset is safe: unlike a duration (a fixed interval timer with no minute-of-hour
 # anchor), cron fires at the same clock time every cycle regardless of broker restarts. The
 # 10-minute gap gives the Postgres backup room to finish before Zeebe's runs, keeping the
-# ordering restore needs (RDBMS backup before the Zeebe backup - see the README's "Backup /
+# ordering restore needs (RDBMS backup before the Zeebe backup - see ENABLEMENT_INSTALLATION_RDBMS.MD's "Backup /
 # restore coordination" section). take-a-backup-now is still available on demand via
 # backup/manual-backup.sh:
 #   https://docs.camunda.io/docs/self-managed/components/orchestration-cluster/core-settings/configuration/properties/#camundadataprimary-storagebackup

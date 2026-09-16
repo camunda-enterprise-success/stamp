@@ -1,0 +1,36 @@
+{
+  "schemaId": "builtin:anomaly-detection.metric-events",
+  "schemaVersion": "1.0.15",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "summary": "[Camunda Platform] ExporterLag",
+    "queryDefinition": {
+      "type": "METRIC_SELECTOR",
+      "metricSelector": "(zeebe.log.appender.last.committed.position:splitBy(\"k8s.namespace.name\",\"partition\"):max)-(zeebe.exporter.last.exported.position:splitBy(\"k8s.namespace.name\",\"partition\"):max)",
+      "managementZone": null,
+      "queryOffset": null
+    },
+    "modelProperties": {
+      "type": "STATIC_THRESHOLD",
+      "threshold": 1000000,
+      "alertOnNoData": false,
+      "alertCondition": "ABOVE",
+      "violatingSamples": 60,
+      "samples": 60,
+      "dealertingSamples": 5
+    },
+    "eventTemplate": {
+      "title": "[Camunda Platform] ExporterLag",
+      "description": "Zeebe exporter lag > 1,000,000 records for 1 hour on partition {dims} — Operate/Tasklist data is severely delayed.\n\nRunbook: https://cautious-adventure-gg5z6wv.pages.github.io/zeebe-runbooks/exporter-lag",
+      "eventType": "SLOWDOWN",
+      "davisMerge": true,
+      "metadata": [
+        { "metadataKey": "team", "metadataValue": "data-layer" },
+        { "metadataKey": "source_rule", "metadataValue": "prometheus-grafana/prometheus-alerts/exporter.yaml#ExporterLag" }
+      ]
+    },
+    "eventEntityDimensionKey": null,
+    "legacyId": null
+  }
+}

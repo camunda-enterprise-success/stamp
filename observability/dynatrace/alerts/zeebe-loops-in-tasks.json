@@ -1,0 +1,36 @@
+{
+  "schemaId": "builtin:anomaly-detection.metric-events",
+  "schemaVersion": "1.0.15",
+  "scope": "environment",
+  "value": {
+    "enabled": true,
+    "summary": "[Camunda Platform] ZeebeLoopsInTasks",
+    "queryDefinition": {
+      "type": "METRIC_SELECTOR",
+      "metricSelector": "zeebe.element.instance.events.total:filter(and(eq(\"action\",\"completed\"),in(\"type\",\"TASK\",\"MANUAL_TASK\"))):splitBy(\"k8s.namespace.name\",\"type\",\"action\"):rate(5m)",
+      "managementZone": null,
+      "queryOffset": null
+    },
+    "modelProperties": {
+      "type": "STATIC_THRESHOLD",
+      "threshold": 10,
+      "alertOnNoData": false,
+      "alertCondition": "ABOVE",
+      "violatingSamples": 5,
+      "samples": 5,
+      "dealertingSamples": 5
+    },
+    "eventTemplate": {
+      "title": "[Camunda Platform] ZeebeLoopsInTasks",
+      "description": "Zeebe is completing more than 10 TASK/MANUAL_TASK elements/sec in namespace {dims} — manual and undefined tasks are processed immediately by Zeebe, so a modeled loop over one of these can run away and produce endless data.\n\nRunbook: https://github.com/camunda/runbook/blob/main/zeebe/zeebe-investigate-data.md#cancel-all-existing-instances",
+      "eventType": "CUSTOM_ALERT",
+      "davisMerge": true,
+      "metadata": [
+        { "metadataKey": "team", "metadataValue": "zeebe" },
+        { "metadataKey": "source_rule", "metadataValue": "prometheus-grafana/prometheus-alerts/zeebe-behaviors.yaml#ZeebeLoopsInTasks" }
+      ]
+    },
+    "eventEntityDimensionKey": null,
+    "legacyId": null
+  }
+}

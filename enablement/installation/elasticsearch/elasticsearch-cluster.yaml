@@ -1,0 +1,96 @@
+# Elasticsearch - deployed via the Elastic Cloud on Kubernetes (ECK) operator - used as secondary
+# storage for the ../minimal_setup_elasticsearch.yaml orchestration cluster and for Optimize
+# (../with_optimize.yaml). Per Camunda's migration-from-bitnami guidance
+# (https://docs.camunda.io/docs/self-managed/deployment/helm/operational-tasks/migration-from-bitnami/bitnami-to-operators/),
+# this replaces the deprecated bundled Bitnami Elasticsearch subchart (removed in Camunda 8.10).
+#
+# Lives in its own "elasticsearch" namespace - same layering principle as postgres/keycloak/minio.
+# Install the ECK operator CRDs + controller first (see ENABLEMENT_INSTALLATION_ELASTICSEARCH.MD's Prerequisites), then
+# `kubectl apply -f` this file.
+#
+# Single node, TLS disabled - matches this guide's "single instance, no HA" / "no Ingress, TLS"
+# posture everywhere else (see the README's Notes / caveats). Scale nodeSets[0].count and add TLS
+# for anything beyond local/enablement use.
+#
+# ECK owns and auto-generates the "elastic" superuser's credentials - unlike every other secret in
+# this repo, it can't be a static inlined dev value. It creates a Secret named
+# "elasticsearch-es-elastic-user" (key "elastic") IN THIS NAMESPACE. Since Secrets are
+# namespace-scoped, ../elasticsearch/copy-elastic-secret.sh copies it into "camunda" for the
+# orchestration cluster (../minimal_setup_elasticsearch.yaml) and Optimize (../with_optimize.yaml)
+# to consume via existingSecret.
+#
+# ECK also creates the read Service this points at: elasticsearch-es-http.elasticsearch.svc.cluster.local:9200
+#
+# --- S3 snapshot backup wiring (for the ../backup_elasticsearch/ backup/restore option) ---
+# Elasticsearch is this track's secondary storage, so its snapshots ARE the secondary-storage half
+# of a backup (they also cover Optimize). Taking snapshots into the local MinIO object store
+# (../backup/minio.yaml, bucket "camunda-backups") requires the S3 client credentials to live in
+# Elasticsearch's own keystore under the fixed keys s3.client.default.access_key/secret_key. On ECK
+# that is done via `spec.secureSettings` pointing at a Secret whose keys become keystore entries -
+# ECK loads them into the keystore and reloads automatically. This mirrors how
+# ../postgresql/postgresql-cluster.yaml carries its own Barman backup wiring inline: the
+# secondary-storage manifest owns its backup credentials. The MinIO S3 endpoint / path-style access
+# themselves are not set here - they're passed as repository settings when the repos are registered
+# (../backup_elasticsearch/register-snapshot-job.yaml). Inlined dev values (minioadmin) - swap for
+# generated values outside a local/dev cluster, same as everything else in this guide.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: elasticsearch
+---
+# S3 client credentials for Elasticsearch snapshot repositories (MinIO). The key NAMES are
+# significant: ECK maps each Secret key to an Elasticsearch keystore entry of the same name, and the
+# S3 repository plugin reads exactly s3.client.default.access_key / s3.client.default.secret_key for
+# its "default" client. Values match ../backup/minio.yaml's minio-credentials (minioadmin/minioadmin).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: elasticsearch-s3-backup-credentials
+  namespace: elasticsearch
+type: Opaque
+stringData:
+  s3.client.default.access_key: minioadmin
+  s3.client.default.secret_key: minioadmin
+---
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: elasticsearch
+  namespace: elasticsearch
+spec:
+  # renovate: datasource=docker depName=docker.elastic.co/elasticsearch/elasticsearch versioning=semver
+  version: 8.19.19
+  # Load the S3 snapshot credentials above into the Elasticsearch keystore (see header). Without
+  # this, registering an s3-type snapshot repository fails with "Access key ... not found".
+  secureSettings:
+    - secretName: elasticsearch-s3-backup-credentials
+  http:
+    tls:
+      selfSignedCertificate:
+        disabled: true
+  nodeSets:
+    - name: default
+      count: 1
+      config:
+        node.store.allow_mmap: "false"
+      volumeClaimTemplates:
+        - metadata:
+            name: elasticsearch-data
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 20Gi
+      podTemplate:
+        spec:
+          containers:
+            - name: elasticsearch
+              resources:
+                requests:
+                  cpu: "1"
+                  memory: 2Gi
+                limits:
+                  cpu: "2"
+                  memory: 2Gi
