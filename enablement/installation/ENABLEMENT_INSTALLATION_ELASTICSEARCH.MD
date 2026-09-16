@@ -11,9 +11,11 @@ Shared concepts — design intent, the external-dependency model, the cross-name
 inventory, and the caveats that apply to both tracks — live in [`README.md`](./README.md).
 
 > Targets **Camunda 8.9** via Helm chart `camunda-platform` **14.8.3**.
-> Chart 14.x deprecates the bundled Bitnami Elasticsearch/Keycloak subcharts (removed in 8.10)
-> — this guide uses the operator-based replacements instead, following Camunda's
-> [migration-from-bitnami](https://docs.camunda.io/docs/self-managed/deployment/helm/operational-tasks/migration-from-bitnami/bitnami-to-operators/) guidance.
+> Chart 14.x deprecates the bundled Bitnami Elasticsearch/Keycloak subcharts and disables them by
+> default; they are removed in 8.10 (chart `15.x`, which also requires the Helm v4 CLI). This guide
+> uses operator-based replacements instead, per Camunda's
+> [operator-based infrastructure](https://docs.camunda.io/docs/self-managed/deployment/helm/configure/operator-based-infrastructure/) guidance — see
+> [Why operators](./README.md#why-operators--and-what-else-you-could-use) for the reasoning and the alternatives.
 
 Optimize has no RDBMS mode — it only reads Elasticsearch/OpenSearch — so this is a genuinely alternate
 storage base, **mutually exclusive with `minimal_setup.yaml`**: never pass both `minimal_setup.yaml`
@@ -31,21 +33,33 @@ and `minimal_setup_elasticsearch.yaml` in the same `-f ... -f ...` line. See
 
 ## What this track deploys
 
-| Concern                        | Kind                 | How                                                                          | Namespace       | File(s)                                                                    |
-|---------------------------------|----------------------|-------------------------------------------------------------------------------|-----------------|------------------------------------------------------------------------------|
-| App database                   | External dependency  | PostgreSQL via CNPG operator (Keycloak + Identity + Web Modeler)             | `postgres`      | `postgresql/postgresql-cluster.yaml`                                       |
-| Authentication                 | External dependency  | Keycloak via Keycloak operator; realm/clients/users scripted                 | `keycloak`      | `keycloak/keycloak-instance.yaml`, `keycloak/create-realm-and-clients.sh`   |
-| OIDC permissions                | Camunda platform     | Switches auth to OIDC against the in-cluster Keycloak                        | `camunda`       | `with_permissions.yaml`                                                    |
-| Secondary storage (base)       | External dependency  | Elasticsearch via ECK operator                                               | `elasticsearch` | `elasticsearch/elasticsearch-cluster.yaml`                                 |
-| Base orchestration (alt.)      | Camunda platform     | Single node, Elasticsearch secondary storage, basic auth                     | `camunda`       | `minimal_setup_elasticsearch.yaml`                                         |
-| Optimize                       | Camunda platform     | Imports from the same Elasticsearch the orchestration cluster exports into   | `camunda`       | `with_optimize.yaml`                                                       |
-| Identity + Web Modeler app DBs | External dependency  | Two more databases on the shared CNPG instance                              | `postgres`      | `postgresql/postgresql-databases-identity-webmodeler.yaml` (+ roles in `postgresql/postgresql-cluster.yaml`) |
-| Management Identity            | Camunda platform     | Own OIDC client, prepared explicitly (see below)                             | `camunda`       | `with_identity_webmodeler.yaml`                                            |
-| Web Modeler                    | Camunda platform     | Requires Identity; own (public) OIDC client + CNPG-backed project storage   | `camunda`       | `with_identity_webmodeler.yaml`                                            |
-| Chart-consumed secret copies   | Camunda platform     | Elasticsearch/Web Modeler+Identity DB credentials, plus one consolidated `camunda-credentials` Secret for everything Keycloak-facing | `camunda`       | `elasticsearch/copy-elastic-secret.sh`, `camunda-secrets-identity-webmodeler.yaml`, `keycloak/create-realm-and-clients.sh` |
-| Object store (backups)         | External dependency  | Local MinIO, bucket `camunda-backups`                                        | `minio`         | `backup/minio.yaml`                                                       |
-| Backup — ES snapshot repos     | External dependency  | Elasticsearch S3 snapshot repos → MinIO (Operate/Tasklist history + Optimize); ES keystore creds baked into the ES cluster | `elasticsearch` | `elasticsearch/elasticsearch-cluster.yaml` (secureSettings), `backup_elasticsearch/register-snapshot-job.yaml` |
-| Backup — coordinated + restore | Camunda platform     | One shared backup ID across Zeebe runtime + history + Optimize under an exporter pause; restore overlays | `camunda`       | `values_with_backup_restore_elasticsearch.yml`, `values_to_restore_oc_elasticsearch.yml`, `backup_elasticsearch/` |
+The deployment is built from **layered Helm values files** (composed with multiple `-f` flags — Helm
+merges them in order, later files win) plus a few resources applied directly with `kubectl` to
+provision dependencies.
+
+`Kind` distinguishes systems the `camunda-platform` chart is merely *configured to talk to*
+("External dependency") from the chart's own values-file layers ("Camunda platform"). `Layer` numbers
+the values files in the order they're additively composed — you can stop after any layer and have a
+working cluster (see [Design intent](./README.md#design-intent)); an external dependency's `Layer` is
+the first one that needs it. Operators are only *this guide's* way of providing the external
+dependencies — see [Why operators](./README.md#why-operators--and-what-else-you-could-use).
+
+| Concern                        | Kind                | Layer                    | How                                                                          | Namespace             | File(s)                                                                    |
+|--------------------------------|---------------------|--------------------------|------------------------------------------------------------------------------|-----------------------|----------------------------------------------------------------------------|
+| Secondary storage (base)       | External dependency | 1 (base)                 | Elasticsearch via ECK operator                                               | `elasticsearch`       | `elasticsearch/elasticsearch-cluster.yaml`                                 |
+| Base orchestration (alt.)      | Camunda platform    | 1 (base)                 | Single node, Elasticsearch secondary storage, basic auth                     | `camunda`             | `minimal_setup_elasticsearch.yaml`                                         |
+| App database                   | External dependency | 2 (+permissions)         | PostgreSQL via CNPG operator (Keycloak + Identity + Web Modeler)             | `postgres`            | `postgresql/postgresql-cluster.yaml`                                       |
+| Authentication                 | External dependency | 2 (+permissions)         | Keycloak via Keycloak operator; realm/clients/users scripted                 | `keycloak`            | `keycloak/keycloak-instance.yaml`, `keycloak/create-realm-and-clients.sh`   |
+| OIDC permissions               | Camunda platform    | 2 (+permissions)         | Switches auth to OIDC against the in-cluster Keycloak                        | `camunda`             | `with_permissions.yaml`                                                    |
+| Optimize                       | Camunda platform    | 2b (+optimize)           | Imports from the same Elasticsearch the orchestration cluster exports into   | `camunda`             | `with_optimize.yaml`                                                       |
+| Monitoring                     | Camunda platform    | 3 (+monitoring, optional)| Prometheus/Grafana stack; add `-f with_monitoring_alerting.yaml` for Zeebe scraping | `camunda` / `default` | `monitoring/`, `with_monitoring_alerting.yaml`                       |
+| Identity + Web Modeler app DBs | External dependency | 3b (+identity+webmodeler)| Two more databases on the shared CNPG instance                               | `postgres`            | `postgresql/postgresql-databases-identity-webmodeler.yaml` (+ roles in `postgresql/postgresql-cluster.yaml`) |
+| Management Identity            | Camunda platform    | 3b (+identity+webmodeler)| Own OIDC client, prepared explicitly (see below)                             | `camunda`             | `with_identity_webmodeler.yaml`                                            |
+| Web Modeler                    | Camunda platform    | 3b (+identity+webmodeler)| Requires Identity; own (public) OIDC client + CNPG-backed project storage    | `camunda`             | `with_identity_webmodeler.yaml`                                            |
+| Object store (backups)         | External dependency | 4 (+backup)              | Local MinIO, bucket `camunda-backups`                                        | `minio`               | `backup/minio.yaml`                                                        |
+| Backup — ES snapshot repos     | External dependency | 4 (+backup)              | Elasticsearch S3 snapshot repos → MinIO (Operate/Tasklist history + Optimize); ES keystore creds baked into the ES cluster | `elasticsearch` | `elasticsearch/elasticsearch-cluster.yaml` (secureSettings), `backup_elasticsearch/register-snapshot-job.yaml` |
+| Backup — coordinated + restore | Camunda platform    | 4 (+backup)              | One shared backup ID across Zeebe runtime + history + Optimize under an exporter pause; restore overlays | `camunda` | `values_with_backup_restore_elasticsearch.yml`, `values_to_restore_oc_elasticsearch.yml`, `backup_elasticsearch/` |
+| Chart-consumed secret copies   | Camunda platform    | 1–4 (all)                | Elasticsearch/Web Modeler+Identity DB credentials, plus one consolidated `camunda-credentials` Secret for everything Keycloak-facing | `camunda` | `elasticsearch/copy-elastic-secret.sh`, `camunda-secrets-identity-webmodeler.yaml`, `keycloak/create-realm-and-clients.sh` |
 
 Unlike orchestration's own OIDC client (`with_permissions.yaml`'s
 `orchestration.security.authentication.oidc`), Optimize/Identity/Web Modeler share one "External
@@ -104,6 +118,11 @@ A running Kubernetes cluster. Locally, create one via:
 ```bash
 make cluster.create   # from deployment-references-repo/local/kubernetes/kind-single-region/
 ```
+
+> **Operators are this guide's choice, not a requirement.** PostgreSQL, Elasticsearch and Keycloak are
+> external dependencies; operators are simply how a local cluster provisions them credibly. Managed
+> services (Elastic Cloud, RDS, Entra ID, …) or infrastructure you already run are equally supported —
+> and Camunda actually recommends managed services first. See [Why operators](./README.md#why-operators--and-what-else-you-could-use).
 
 Install the three operators this track needs once per cluster (versions pinned to match the images in
 the manifests — check for current versions before production):

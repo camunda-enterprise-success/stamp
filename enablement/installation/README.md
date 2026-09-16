@@ -10,14 +10,18 @@ with the Camunda platform**: secondary storage, the OIDC provider, the backup ob
 monitoring stack are all external dependencies (see [Design intent](#design-intent)).
 
 > Targets **Camunda 8.9** via Helm chart `camunda-platform` **14.8.3**.
-> Chart 14.x deprecates the bundled Bitnami Elasticsearch/Keycloak subcharts (removed in 8.10)
-> — these guides use the operator-based replacements instead, following Camunda's
-> [migration-from-bitnami](https://docs.camunda.io/docs/self-managed/deployment/helm/operational-tasks/migration-from-bitnami/) guidance.
+> Chart 14.x deprecates the bundled Bitnami Elasticsearch/Keycloak subcharts and disables them by
+> default; they are removed in 8.10 (chart `15.x`, which also requires the Helm v4 CLI). These guides
+> use operator-based replacements instead, per Camunda's
+> [operator-based infrastructure](https://docs.camunda.io/docs/self-managed/deployment/helm/configure/operator-based-infrastructure/)
+> guidance — see [Why operators](#why-operators--and-what-else-you-could-use) for the reasoning and
+> for the alternatives you can use instead.
 
 ## Contents
 
 - [Choose your track](#choose-your-track)
 - [Design intent](#design-intent)
+- [Why operators — and what else you could use](#why-operators--and-what-else-you-could-use)
 - [Shared architecture](#shared-architecture)
 - [Repository map](#repository-map)
 - [Notes / caveats](#notes--caveats)
@@ -77,6 +81,98 @@ talk to* them (a JDBC URL, an issuer URL, an S3 endpoint, a scrape target).
 
 The component tables in each guide make this explicit with a `Kind` column: "External dependency" vs.
 "Camunda platform" (the chart's own values-file layers).
+
+## Why operators — and what else you could use
+
+[Design intent](#design-intent) point 2 covers *what* PostgreSQL, the OIDC provider, the backup object
+store and the monitoring stack are: external dependencies the `camunda-platform` chart only ever
+points at. This section covers the other half of that decision — *how* they get deployed. The chart
+has no opinion there, so the choice is yours, and the choice these guides make (Kubernetes operators)
+is one of several Camunda supports.
+
+### Camunda's order of preference
+
+1. **Managed or already-existing external services, first.** Camunda's production guidance is to build
+   on "primarily managed PostgreSQL and Elasticsearch services, along with external OIDC providers"
+   ([operator-based infrastructure](https://docs.camunda.io/docs/self-managed/deployment/helm/configure/operator-based-infrastructure/)).
+2. **Vendor-supported operators**, when managed services aren't in your organization's service catalog
+   — explicitly the fallback, not the first choice. A local kind cluster has no managed service to
+   point at, which is precisely why these guides use operators.
+3. **The bundled Bitnami subcharts** — development and testing only. Deprecated *and disabled by
+   default* in 8.9, and **removed in 8.10** (chart `15.x`, which also requires the Helm v4 CLI). See
+   [Bitnami subcharts](https://docs.camunda.io/docs/self-managed/deployment/helm/chart-parameters/#bitnami-subcharts).
+
+Operators here are therefore not a recommendation *over* managed services — they're what you reach for
+when there's no managed service to point at. What they buy over hand-rolled StatefulSets: each is
+maintained by the project that owns the technology, with its own support channel and CVE cadence; they
+automate failover, backup, and credential/certificate rotation; and they drop the Bitnami/Broadcom
+image supply chain entirely.
+
+| Operator                                                                                            | Provides                  | Namespace       | Pinned here | Track   |
+|-----------------------------------------------------------------------------------------------------|---------------------------|-----------------|-------------|---------|
+| [CloudNativePG](https://cloudnative-pg.io/) (CNPG)                                                  | PostgreSQL (`pg-camunda`) | `postgres`      | 1.30.0      | both    |
+| [Keycloak operator](https://www.keycloak.org/operator/installation)                                  | Keycloak (OIDC provider)  | `keycloak`      | 26.3.2      | both    |
+| [ECK](https://www.elastic.co/guide/en/cloud-on-k8s/current/index.html)                               | Elasticsearch             | `elasticsearch` | 3.3.2       | ES only |
+
+All three are cluster-scoped (hence the cluster-admin prerequisite); install commands live in each
+track's Prerequisites ([RDBMS](./ENABLEMENT_INSTALLATION_RDBMS.MD#prerequisites) ·
+[Elasticsearch](./ENABLEMENT_INSTALLATION_ELASTICSEARCH.MD#prerequisites)). This directory follows the
+shape of Camunda's own
+[operator-based reference manifests](https://github.com/camunda/camunda-deployment-references/tree/stable/8.9/generic/kubernetes/operator-based).
+
+> **Support boundary.** PostgreSQL, Elasticsearch and Keycloak are external dependencies — not Camunda
+> products — *regardless of how they're deployed*. Camunda supports their **integration and
+> configuration** with the Helm chart; it does not provide operational support for the infrastructure
+> itself. That comes from the CNPG/Elastic/Keycloak projects or your managed-service vendor. Choosing
+> an operator doesn't move that line.
+
+### Operators are not the only option
+
+If your organization already runs any of these — or is simply better at running them another way — use
+what you have. Every row below is a path Camunda documents
+([managed services](https://docs.camunda.io/docs/self-managed/deployment/helm/operational-tasks/migration-from-bitnami/bitnami-to-managed-services/)
+· [advanced alternatives](https://docs.camunda.io/docs/self-managed/deployment/helm/operational-tasks/migration-from-bitnami/alternatives/)),
+and each changes only endpoints and credentials here — never the shape of a values file:
+
+| Instead of              | You could use                                                                                           | What changes in this repo                                                                                                   |
+|-------------------------|---------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| CNPG PostgreSQL         | RDS, Aurora PostgreSQL, Cloud SQL, Azure Database for PostgreSQL, a DBA-managed shared cluster          | the JDBC URL in `minimal_setup.yaml` (+ the `identity`/`webmodeler` hosts in `with_identity_webmodeler.yaml`) and the Secret |
+| ECK Elasticsearch       | Elastic Cloud, Amazon OpenSearch, self-run OpenSearch, an existing ES cluster                           | the ES URL in `minimal_setup_elasticsearch.yaml` / `with_optimize.yaml` and the Secret                                      |
+| the in-cluster Keycloak | Entra ID, Okta, Auth0, Cognito, an existing corporate Keycloak, or Keycloak brokering a SAML/LDAP IdP    | the OIDC endpoint keys in `with_permissions.yaml` / `with_optimize.yaml` and the client secrets                              |
+| MinIO                   | S3, GCS, Azure Blob                                                                                     | the `CAMUNDA_DATA_PRIMARYSTORAGE_BACKUP_S3_*` block (and the CNPG/ES snapshot targets)                                       |
+| in-cluster anything     | VMs, bare metal, Docker Compose — or Camunda itself outside Kubernetes                                  | endpoints and credentials only                                                                                              |
+
+Reusing existing expertise is reason enough on its own, and it isn't the only one Camunda recognizes:
+a policy forbidding operator installs (security or compliance), bare metal without managed-service
+access, and consolidating onto a DBA-managed cluster are all called out explicitly.
+
+### What actually has to be true
+
+"Reachable from the cluster" is the main requirement, but not the only one:
+
+- **Network reachability from the Camunda pods.** For secondary storage and the object store this
+  really is all the chart needs — a URL plus credentials. Nothing has to run *inside* Kubernetes; it
+  only has to be routable from the pods (and for in-cluster services that means a fully-qualified
+  Service DNS name — see [Shared architecture](#shared-architecture)).
+- **Credentials as a Secret in the Camunda release's own namespace.** Secrets are namespace-scoped and
+  the chart reads `existingSecret` only from its own namespace — the entire reason the
+  `camunda-secrets*.yaml` copies exist here.
+- **A supported version, not merely a reachable one.** Elasticsearch 8.19+ or 9.2+, OpenSearch 2.19+
+  or 3.4+, Keycloak 26.x for Management Identity (25.x dropped in 8.9), and for RDBMS secondary
+  storage the [RDBMS support policy](https://docs.camunda.io/docs/self-managed/concepts/databases/relational-db/rdbms-support-policy/)
+  (PostgreSQL 15–18, 14 deprecated; also MariaDB, MySQL, SQL Server, Oracle, Aurora PostgreSQL, H2).
+  Managed PostgreSQL is supported as an *engine*, not per provider. Full matrix:
+  [supported environments](https://docs.camunda.io/docs/reference/supported-environments/#component-requirements).
+  Bringing your own Elasticsearch also means granting the
+  [required ES privileges](https://docs.camunda.io/docs/self-managed/concepts/databases/elasticsearch/elasticsearch-privileges/).
+- **The IdP is the exception to "reachable from the cluster."** An OIDC issuer must be reachable by the
+  in-cluster pods *and* by your browser, at a URL that resolves to the same string for both —
+  otherwise the `iss` claim and the redirect URIs don't line up. Hence the Keycloak here fixes its
+  hostname to the cluster-DNS name and both guides ask for an `/etc/hosts` entry. It's also why a
+  port-forward-only setup generally needs Keycloak rather than a corporate IdP: Entra ID and Okta
+  reject `localhost` redirect URIs.
+- **Optimize needs a document store.** It has no RDBMS mode, so no choice of relational database makes
+  Optimize work — which is why the two tracks split the way they do.
 
 ## Shared architecture
 

@@ -9,9 +9,11 @@ Shared concepts — design intent, the external-dependency model, the cross-name
 inventory, and the caveats that apply to both tracks — live in [`README.md`](./README.md).
 
 > Targets **Camunda 8.9** via Helm chart `camunda-platform` **14.8.3**.
-> Chart 14.x deprecates the bundled Bitnami Elasticsearch/Keycloak subcharts (removed in 8.10)
-> — this guide uses the operator-based replacements instead, following Camunda's
-> [migration-from-bitnami](https://docs.camunda.io/docs/self-managed/deployment/helm/operational-tasks/migration-from-bitnami/) guidance.
+> Chart 14.x deprecates the bundled Bitnami Elasticsearch/Keycloak subcharts and disables them by
+> default; they are removed in 8.10 (chart `15.x`, which also requires the Helm v4 CLI). This guide
+> uses operator-based replacements instead, per Camunda's
+> [operator-based infrastructure](https://docs.camunda.io/docs/self-managed/deployment/helm/configure/operator-based-infrastructure/) guidance — see
+> [Why operators](./README.md#why-operators--and-what-else-you-could-use) for the reasoning and the alternatives.
 
 **No Optimize on this track.** Optimize has no RDBMS mode — it only reads Elasticsearch/OpenSearch —
 so Optimize, Management Identity, and Web Modeler are not part of this installation. See
@@ -66,6 +68,11 @@ A running Kubernetes cluster. Locally, create one via:
 ```bash
 make cluster.create   # from deployment-references-repo/local/kubernetes/kind-single-region/
 ```
+
+> **Operators are this guide's choice, not a requirement.** PostgreSQL and Keycloak are external
+> dependencies; operators are simply how a local cluster provisions them credibly. A managed database,
+> a corporate IdP, or infrastructure you already run are equally supported — and Camunda actually
+> recommends managed services first. See [Why operators](./README.md#why-operators--and-what-else-you-could-use).
 
 Install the two operators this track needs once per cluster (versions pinned to match the images in
 the manifests — check for current versions before production):
